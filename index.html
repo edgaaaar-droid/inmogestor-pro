@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de Gestión Inmobiliaria - Edgar Paniagua | C21 Sky">
+    <meta name="theme-color" content="#f59e0b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="InmoGestor">
+    <title>InmoGestor Pro - Edgar Paniagua | C21 Sky</title>
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="512x512" href="img/icon-512.png">
+    <link rel="apple-touch-icon" href="img/icon-192.png">
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet (Map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- ExcelJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <img src="img/profile.jpg" alt="Edgar Paniagua" class="logo-avatar">
+                    <div style="display:flex;flex-direction:column;line-height:1.1;">
+                        <span class="logo-text" style="font-size:1.1rem;">Edgar Paniagua</span>
+                        <span
+                            style="font-size:0.8rem;color:var(--primary);letter-spacing:1px;text-transform:uppercase;font-weight:600;">C21
+                            Sky</span>
+                    </div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#dashboard" class="nav-item active" data-section="dashboard">
+                    <span class="nav-icon">📊</span><span class="nav-text">Dashboard</span>
+                </a>
+                <a href="#properties" class="nav-item" data-section="properties">
+                    <span class="nav-icon">🏡</span><span class="nav-text">Propiedades</span>
+                </a>
+                <a href="#clients" class="nav-item" data-section="clients">
+                    <span class="nav-icon">👥</span><span class="nav-text">Clientes</span>
+                </a>
+                <a href="#followups" class="nav-item" data-section="followups">
+                    <span class="nav-icon">📅</span><span class="nav-text">Seguimientos</span>
+                </a>
+                <a href="#signs" class="nav-item" data-section="signs">
+                    <span class="nav-icon">📋</span><span class="nav-text">Captación</span>
+                </a>
+                <a href="#map" class="nav-item" data-section="map">
+                    <span class="nav-icon">📍</span><span class="nav-text">Mapa</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="backup-buttons">
+                    <button class="backup-btn" id="exportDataBtn" title="Exportar datos">
+                        <span>📥</span><span class="nav-text">Exportar</span>
+                    </button>
+                    <button class="backup-btn" id="importDataBtn" title="Importar datos">
+                        <span>📤</span><span class="nav-text">Importar</span>
+                    </button>
+                    <input type="file" id="importFileInput" accept=".json" hidden>
+                </div>
+                <!-- Theme Toggle Removed -->
+            </div>
+        </aside>
+        <main class="main-content">
+            <header class="top-bar">
+                <button class="mobile-menu-btn" id="mobileMenuBtn"><span></span><span></span><span></span></button>
+                <div class="search-bar">
+                    <input type="text" id="globalSearch" placeholder="Buscar..."><span class="search-icon">🔍</span>
+                </div>
+                <div class="user-actions"><span class="current-date" id="currentDate"></span></div>
+            </header>
+            <section class="content-section active" id="section-dashboard"></section>
+            <section class="content-section" id="section-properties"></section>
+            <section class="content-section" id="section-clients"></section>
+            <section class="content-section" id="section-followups"></section>
+            <section class="content-section" id="section-signs"></section>
+            <section class="content-section" id="section-map"></section>
+        </main>
+    </div>
+    <div class="modal" id="propertyModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg"></div>
+    </div>
+    <div class="modal" id="clientModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content"></div>
+    </div>
+    <div class="modal" id="followupModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content"></div>
+    </div>
+    <div class="modal" id="detailModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-xl"></div>
+    </div>
+    <div class="modal" id="saleModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg"></div>
+    </div>
+    <div class="modal" id="signModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg"></div>
+    </div>
+    <div class="modal" id="earningsModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-xl"></div>
+    </div>
+    <div class="lightbox" id="lightbox"><button class="lightbox-close">&times;</button><img src="" id="lightboxImage">
+        <div class="lightbox-nav"></div>
+    </div>
+    <div class="toast-container" id="toastContainer"></div>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAL9DglRzm-Eethzgb-47O8U4XyghcmKqo",
+            authDomain: "inmogestorpro.firebaseapp.com",
+            projectId: "inmogestorpro",
+            storageBucket: "inmogestorpro.firebasestorage.app",
+            messagingSenderId: "78853557140",
+            appId: "1:78853557140:web:f197e26e5b15d3dda95d81"
+        };
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+    </script>
+    <script src="js/storage.js"></script>
+    <script src="js/properties.js"></script>
+    <script src="js/clients.js"></script>
+    <script src="js/followups.js"></script>
+    <script src="js/signs.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/pdf-generator.js"></script>
+    <script src="js/app.js"></script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((registration) => {
+                        console.log('ServiceWorker registrado:', registration.scope);
+                        // Check for updates every 5 minutes
+                        setInterval(() => {
+                            registration.update();
+                        }, 5 * 60 * 1000);
+                    })
+                    .catch((error) => {
+                        console.log('Error registrando ServiceWorker:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+
+</html>
