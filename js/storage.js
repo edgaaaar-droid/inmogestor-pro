@@ -302,13 +302,20 @@ const Storage = {
 
     firebaseEnabled: false,
     syncInProgress: false,
+    isRemoteUpdate: false, // Flag to prevent sync loops
+    realtimeUnsubscribe: null, // Store unsubscribe function
 
     async initFirebase() {
         try {
             if (typeof db !== 'undefined') {
                 this.firebaseEnabled = true;
                 console.log('✓ Firebase conectado');
-                this.syncFromCloud();
+
+                // Initial sync from cloud
+                await this.syncFromCloud();
+
+                // Start real-time listener
+                this.startRealtimeListener();
             }
         } catch (e) {
             console.log('Firebase no disponible, usando solo localStorage');
@@ -316,11 +323,97 @@ const Storage = {
         }
     },
 
+    // Real-time listener for cross-device sync
+    startRealtimeListener() {
+        if (!this.firebaseEnabled || this.realtimeUnsubscribe) return;
+
+        console.log('🔄 Iniciando listener en tiempo real...');
+
+        this.realtimeUnsubscribe = db.collection('userData').doc('main').onSnapshot((doc) => {
+            // Skip if this is a local change we just pushed
+            if (this.syncInProgress || this.isRemoteUpdate) return;
+
+            if (doc.exists) {
+                const cloudData = doc.data();
+                const localLastSync = localStorage.getItem('inmogestor_lastSync');
+
+                // Check if cloud data is newer than our local data
+                if (cloudData.lastSync && cloudData.lastSync !== localLastSync) {
+                    console.log('🔄 Cambios detectados desde otro dispositivo');
+                    this.applyRemoteChanges(cloudData);
+                }
+            }
+        }, (error) => {
+            console.error('Error en listener tiempo real:', error);
+        });
+    },
+
+    // Apply changes from remote device
+    applyRemoteChanges(data) {
+        this.isRemoteUpdate = true;
+
+        try {
+            // Update localStorage with cloud data
+            if (data.properties) this.set(this.KEYS.PROPERTIES, data.properties);
+            if (data.clients) this.set(this.KEYS.CLIENTS, data.clients);
+            if (data.followups) this.set(this.KEYS.FOLLOWUPS, data.followups);
+            if (data.colleagues) this.set(this.KEYS.COLLEAGUES, data.colleagues);
+            if (data.sales) this.set(this.KEYS.SALES, data.sales);
+            if (data.signs) this.set(this.KEYS.SIGNS, data.signs);
+            if (data.settings) this.set(this.KEYS.SETTINGS, data.settings);
+
+            // Store last sync time to avoid re-applying
+            localStorage.setItem('inmogestor_lastSync', data.lastSync);
+
+            // Refresh UI without page reload
+            this.refreshUI();
+
+            // Show notification to user
+            if (typeof App !== 'undefined' && App.showToast) {
+                App.showToast('🔄 Datos actualizados desde otro dispositivo', 'info');
+            }
+
+            console.log('✓ Datos remotos aplicados');
+            this.updateSyncStatus('synced');
+        } catch (e) {
+            console.error('Error aplicando cambios remotos:', e);
+        } finally {
+            this.isRemoteUpdate = false;
+        }
+    },
+
+    // Refresh all UI components without page reload
+    refreshUI() {
+        try {
+            // Refresh each module if available
+            if (typeof Properties !== 'undefined' && Properties.render) {
+                Properties.render();
+            }
+            if (typeof Clients !== 'undefined' && Clients.render) {
+                Clients.render();
+            }
+            if (typeof Followups !== 'undefined' && Followups.render) {
+                Followups.render();
+            }
+            if (typeof Signs !== 'undefined' && Signs.render) {
+                Signs.render();
+            }
+            // Update dashboard stats
+            if (typeof App !== 'undefined' && App.updateDashboard) {
+                App.updateDashboard();
+            }
+            console.log('✓ UI refrescada');
+        } catch (e) {
+            console.error('Error refrescando UI:', e);
+        }
+    },
+
     async syncToCloud() {
-        if (!this.firebaseEnabled || this.syncInProgress) return;
+        if (!this.firebaseEnabled || this.syncInProgress || this.isRemoteUpdate) return;
 
         try {
             this.syncInProgress = true;
+            const syncTime = new Date().toISOString();
             const data = {
                 properties: this.getProperties(),
                 clients: this.getClients(),
@@ -329,10 +422,14 @@ const Storage = {
                 sales: this.getSales(),
                 settings: this.getSettings(),
                 signs: this.getSigns(),
-                lastSync: new Date().toISOString()
+                lastSync: syncTime
             };
 
             await db.collection('userData').doc('main').set(data);
+
+            // Store sync time locally to avoid re-applying our own changes
+            localStorage.setItem('inmogestor_lastSync', syncTime);
+
             console.log('☁️ Datos sincronizados a la nube');
             this.updateSyncStatus('synced');
         } catch (e) {
@@ -360,6 +457,7 @@ const Storage = {
                     this.set(this.KEYS.SALES, data.sales || []);
                     this.set(this.KEYS.SIGNS, data.signs || []);
                     if (data.settings) this.set(this.KEYS.SETTINGS, data.settings);
+                    if (data.lastSync) localStorage.setItem('inmogestor_lastSync', data.lastSync);
                     console.log('☁️ Datos restaurados desde la nube');
                     location.reload(); // Refresh to show synced data
                 }
