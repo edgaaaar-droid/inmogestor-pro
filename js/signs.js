@@ -591,7 +591,7 @@ const Signs = {
         }
     },
 
-    handleSubmit(e) {
+    async handleSubmit(e) {
         e.preventDefault();
 
         const hasAgentVal = document.getElementById('signHasAgent').value;
@@ -629,6 +629,18 @@ const Signs = {
             customFields: Object.keys(customFields).length > 0 ? customFields : undefined
         };
 
+        // Secretary restriction: can only add NEW items (not edit), and they go to pending
+        if (Storage.isSecretary()) {
+            if (sign.id) {
+                App.showToast('❌ No tienes permiso para editar. Solo puedes agregar nuevos datos.', 'error');
+                return;
+            }
+            await Storage.savePending('sign', sign);
+            this.closeModal();
+            this.render();
+            return;
+        }
+
         Storage.saveSign(sign);
         this.closeModal();
         this.render();
@@ -636,11 +648,21 @@ const Signs = {
     },
 
     edit(id) {
+        // Secretary restriction: cannot edit
+        if (Storage.isSecretary()) {
+            App.showToast('❌ No tienes permiso para editar. Solo puedes agregar nuevos datos.', 'error');
+            return;
+        }
         const sign = Storage.getSigns().find(s => s.id === id);
         if (sign) this.openModal(sign);
     },
 
     delete(id) {
+        // Secretary restriction: cannot delete
+        if (Storage.isSecretary()) {
+            App.showToast('❌ No tienes permiso para eliminar datos.', 'error');
+            return;
+        }
         if (confirm('¿Eliminar este cartel?')) {
             Storage.deleteSign(id);
             this.render();

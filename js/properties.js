@@ -766,7 +766,7 @@ const Properties = {
         this.renderImagePreviews();
     },
 
-    handleSubmit(e) {
+    async handleSubmit(e) {
         e.preventDefault();
 
         const property = {
@@ -795,6 +795,20 @@ const Properties = {
             captacionId: document.getElementById('propertyCaptacionId')?.value || null,
             captacionDate: document.getElementById('propertyCaptacionDate')?.value || null
         };
+
+        // Secretary restriction: can only add NEW items (not edit), and they go to pending
+        if (Storage.isSecretary()) {
+            if (property.id) {
+                // Trying to edit existing - BLOCKED
+                App.showToast('❌ No tienes permiso para editar. Solo puedes agregar nuevos datos.', 'error');
+                return;
+            }
+            // New item - send to pending approvals
+            await Storage.savePending('property', property);
+            this.closeModal();
+            this.render();
+            return;
+        }
 
         Storage.saveProperty(property);
         this.closeModal();
@@ -880,12 +894,22 @@ const Properties = {
     },
 
     edit(id) {
+        // Secretary restriction: cannot edit
+        if (Storage.isSecretary()) {
+            App.showToast('❌ No tienes permiso para editar. Solo puedes agregar nuevos datos.', 'error');
+            return;
+        }
         App.closeModal('detailModal');
         const property = Storage.getProperties().find(p => p.id === id);
         if (property) this.openModal(property);
     },
 
     delete(id) {
+        // Secretary restriction: cannot delete
+        if (Storage.isSecretary()) {
+            App.showToast('❌ No tienes permiso para eliminar datos.', 'error');
+            return;
+        }
         if (confirm('¿Estás seguro de eliminar esta propiedad?')) {
             Storage.deleteProperty(id);
             App.closeModal('detailModal');

@@ -121,7 +121,7 @@ const Clients = {
         this.modal.classList.remove('active');
     },
 
-    handleSubmit(e) {
+    async handleSubmit(e) {
         e.preventDefault();
 
         const client = {
@@ -135,6 +135,18 @@ const Clients = {
             preferences: document.getElementById('clientPreferences').value,
             notes: document.getElementById('clientNotes').value
         };
+
+        // Secretary restriction: can only add NEW items (not edit), and they go to pending
+        if (Storage.isSecretary()) {
+            if (client.id) {
+                App.showToast('❌ No tienes permiso para editar. Solo puedes agregar nuevos datos.', 'error');
+                return;
+            }
+            await Storage.savePending('client', client);
+            this.closeModal();
+            this.render();
+            return;
+        }
 
         Storage.saveClient(client);
         this.closeModal();
@@ -202,12 +214,22 @@ const Clients = {
     },
 
     edit(id) {
+        // Secretary restriction: cannot edit
+        if (Storage.isSecretary()) {
+            App.showToast('❌ No tienes permiso para editar. Solo puedes agregar nuevos datos.', 'error');
+            return;
+        }
         App.closeModal('detailModal');
         const client = Storage.getClients().find(c => c.id === id);
         if (client) this.openModal(client);
     },
 
     delete(id) {
+        // Secretary restriction: cannot delete
+        if (Storage.isSecretary()) {
+            App.showToast('❌ No tienes permiso para eliminar datos.', 'error');
+            return;
+        }
         if (confirm('¿Estás seguro de eliminar este cliente?')) {
             Storage.deleteClient(id);
             App.closeModal('detailModal');
