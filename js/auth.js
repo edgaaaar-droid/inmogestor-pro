@@ -19,7 +19,8 @@ const Auth = {
 
     // Check if current user is admin
     isAdmin() {
-        return this.currentUser && this.currentUser.email === this.ADMIN_EMAIL;
+        if (!this.currentUser || !this.currentUser.email) return false;
+        return this.currentUser.email.toLowerCase().trim() === this.ADMIN_EMAIL.toLowerCase().trim();
     },
 
     // Get invitation code from URL (format: ?invite=userId or #invite=userId)
