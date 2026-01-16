@@ -208,6 +208,51 @@ const Storage = {
         if (data.followups) this.set(this.KEYS.FOLLOWUPS, data.followups);
     },
 
+    // Merge legacy data safely matching current user
+    async mergeLegacyData(data) {
+        let count = 0;
+
+        // Disable sync temporarily to avoid flooding
+        this.firebaseEnabled = false;
+
+        try {
+            if (data.properties && Array.isArray(data.properties)) {
+                data.properties.forEach(p => {
+                    // Ensure it doesn't exist or is older
+                    const existing = this.getProperties().find(e => e.id === p.id);
+                    if (!existing) {
+                        this.saveProperty(p);
+                        count++;
+                    }
+                });
+            }
+            if (data.clients && Array.isArray(data.clients)) {
+                data.clients.forEach(c => {
+                    const existing = this.getClients().find(e => e.id === c.id);
+                    if (!existing) {
+                        this.saveClient(c);
+                        count++;
+                    }
+                });
+            }
+            if (data.signs && Array.isArray(data.signs)) {
+                data.signs.forEach(s => {
+                    const existing = this.getSigns().find(e => e.id === s.id);
+                    if (!existing) {
+                        this.saveSign(s);
+                        count++;
+                    }
+                });
+            }
+        } finally {
+            // Re-enable sync and force one push
+            this.firebaseEnabled = true;
+            this.triggerCloudSync();
+        }
+
+        return count;
+    },
+
     // Colleagues (Base de datos de colegas Century 21)
     getColleagues() {
         return this.get(this.KEYS.COLLEAGUES) || [];

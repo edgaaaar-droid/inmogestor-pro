@@ -1032,6 +1032,17 @@ const Auth = {
                         </div>
                     `).join('')}
                 </div>
+                </div>
+
+                ${this.isAdmin() ? `
+                <div style="margin-top:2rem; border-top:1px solid var(--border-color); padding-top:1rem;">
+                    <h3 style="color:var(--text-muted); font-size:1rem;">Zona de Mantenimiento</h3>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.5rem;">Si perdiste datos antiguos, usa esta herramienta.</p>
+                    <button id="recoveryBtn" class="btn btn-outline-danger btn-sm" onclick="Auth.handleLegacyRecovery()">
+                        🕵️ Buscar y Recuperar Datos Antiguos
+                    </button>
+                </div>
+                ` : ''}
             </div>
         `;
 
@@ -1228,5 +1239,51 @@ const Auth = {
         await this.rejectInvitation(mainUserId);
         document.getElementById('invitationBanner')?.remove();
         App.showToast('Invitación rechazada', 'info');
+    },
+
+    // Check for legacy root collections
+    async checkLegacyData() {
+        try {
+            const propsSnap = await db.collection('properties').get();
+            const clientsSnap = await db.collection('clients').get();
+            const signsSnap = await db.collection('signs').get();
+
+            const total = propsSnap.size + clientsSnap.size + signsSnap.size;
+
+            if (total === 0) return null;
+
+            return {
+                properties: propsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+                clients: clientsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+                signs: signsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+                count: total
+            };
+        } catch (e) {
+            console.error('Error checking legacy:', e);
+            return null;
+        }
+    },
+
+    async handleLegacyRecovery() {
+        const btn = document.getElementById('recoveryBtn');
+        if (btn) btn.disabled = true;
+
+        App.showToast('🔍 Buscando datos antiguos...', 'info');
+
+        const data = await this.checkLegacyData();
+
+        if (!data || data.count === 0) {
+            App.showToast('No se encontraron datos antiguos en la raíz', 'info');
+            if (btn) btn.disabled = false;
+            return;
+        }
+
+        if (confirm(`⚠️ Se encontraron ${data.count} elementos antiguos (Propiedades: ${data.properties.length}, Clientes: ${data.clients.length}). \n\n¿Quieres importarlos a tu cuenta actual?`)) {
+            const imported = await Storage.mergeLegacyData(data);
+            App.showToast(`✓ Datos recuperados exitosamente. Recargando...`, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            if (btn) btn.disabled = false;
+        }
     }
 };
