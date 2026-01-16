@@ -428,6 +428,9 @@ const Signs = {
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
 
+                // Reverse Geocode
+                this.reverseGeocode(lat, lng);
+
                 // Update map
                 if (this.miniMap) {
                     this.miniMap.setView([lat, lng], 16);
@@ -454,6 +457,43 @@ const Signs = {
                 maximumAge: 60000
             }
         );
+    },
+
+    async reverseGeocode(lat, lng) {
+        const addressInput = document.getElementById('signAddress');
+        // Only fill if empty
+        if (addressInput && addressInput.value.trim() === '') {
+            try {
+                // Show loading indicator in placeholder?
+                addressInput.placeholder = '📍 Buscando dirección...';
+
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                const data = await response.json();
+
+                if (data && data.display_name) {
+                    // Simpler address format: Road, House Number, Neighbourhood, City
+                    // Nominatim returns messy display_name. data.address object is better.
+                    let addr = data.display_name;
+
+                    if (data.address) {
+                        const parts = [];
+                        if (data.address.road) parts.push(data.address.road);
+                        if (data.address.house_number) parts.push(data.address.house_number);
+                        if (data.address.neighbourhood) parts.push(data.address.neighbourhood);
+                        if (data.address.city || data.address.town || data.address.village) parts.push(data.address.city || data.address.town || data.address.village);
+
+                        if (parts.length > 0) addr = parts.join(', ');
+                    }
+
+                    addressInput.value = addr;
+                    App.showToast('📍 Dirección completada desde el mapa', 'success');
+                }
+            } catch (error) {
+                console.error('Geocoding error:', error);
+            } finally {
+                addressInput.placeholder = 'Ej: Av. Corrientes 1234, CABA';
+            }
+        }
     },
 
     closeModal() {
@@ -591,6 +631,9 @@ const Signs = {
             this.miniMapMarker = L.marker([lat, lng]).addTo(this.miniMap);
             document.getElementById('signLat').value = lat.toFixed(6);
             document.getElementById('signLng').value = lng.toFixed(6);
+
+            // Reverse Geocode
+            this.reverseGeocode(lat, lng);
         });
 
         // Enter key on search field
