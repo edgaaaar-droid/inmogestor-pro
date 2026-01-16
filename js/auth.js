@@ -4,7 +4,7 @@ const Auth = {
     authStateListeners: [],
 
     // ADMIN EMAIL - Super usuario con acceso a todos los datos
-    ADMIN_EMAIL: 'admin@inmogestor.com',
+    ADMIN_EMAIL: 'edgar_santiago1@hotmail.com',
 
     // Initialize auth and listen for state changes
     init() {
