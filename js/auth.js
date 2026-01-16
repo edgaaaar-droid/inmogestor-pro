@@ -322,7 +322,13 @@ const Auth = {
             return;
         }
 
-        const users = await this.getAllUsers();
+        App.showToast('Cargando datos del sistema...', 'info');
+
+        // Get all users and their data
+        const usersData = await this.getAllUsersWithData();
+
+        // Calculate global stats
+        const globalStats = this.calculateGlobalStats(usersData);
 
         const modal = document.getElementById('adminModal');
         if (!modal) return;
@@ -333,29 +339,276 @@ const Auth = {
                 <h2>👑 Panel de Administrador</h2>
                 <button class="modal-close" onclick="document.getElementById('adminModal').classList.remove('active')">×</button>
             </div>
-            <div class="modal-body">
-                <h3 style="margin-bottom:1rem;">Usuarios Registrados (${users.length})</h3>
-                <div class="admin-users-list">
-                    ${users.length === 0 ? '<p style="color:var(--text-muted);">No hay usuarios registrados aún</p>' : ''}
-                    ${users.map(u => `
-                        <div class="admin-user-item" data-userid="${u.id}">
-                            <div class="admin-user-info">
-                                <strong>${u.id.substring(0, 8)}...</strong>
-                                <span style="font-size:0.8rem;color:var(--text-muted);">
-                                    ${u.data?.main?.properties?.length || 0} propiedades, 
-                                    ${u.data?.main?.clients?.length || 0} clientes
-                                </span>
-                            </div>
-                            <button class="btn btn-sm" onclick="Auth.viewUserData('${u.id}')">
-                                Ver Datos
-                            </button>
-                        </div>
-                    `).join('')}
+            <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
+                
+                <!-- Global Stats -->
+                <div class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="admin-stat-card" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); padding: 1rem; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold;">${globalStats.totalUsers}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">👥 Usuarios</div>
+                    </div>
+                    <div class="admin-stat-card" style="background: linear-gradient(135deg, #10b981, #059669); padding: 1rem; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold;">${globalStats.totalProperties}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">🏠 Propiedades</div>
+                    </div>
+                    <div class="admin-stat-card" style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 1rem; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold;">${globalStats.totalClients}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">👔 Clientes</div>
+                    </div>
+                    <div class="admin-stat-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 1rem; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold;">${globalStats.totalSigns}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">📋 Carteles</div>
+                    </div>
                 </div>
+
+                <!-- User Filter -->
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Filtrar por Usuario:</label>
+                    <select id="adminUserFilter" class="form-control" onchange="Auth.filterAdminData(this.value)">
+                        <option value="all">📊 Todos los usuarios</option>
+                        ${usersData.map(u => `
+                            <option value="${u.id}">${u.displayName || u.email || u.id.substring(0, 8)}</option>
+                        `).join('')}
+                    </select>
+                </div>
+
+                <!-- Tabs -->
+                <div class="admin-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                    <button class="btn btn-sm admin-tab active" onclick="Auth.showAdminTab('users')" data-tab="users">👥 Usuarios</button>
+                    <button class="btn btn-sm admin-tab" onclick="Auth.showAdminTab('properties')" data-tab="properties">🏠 Propiedades</button>
+                    <button class="btn btn-sm admin-tab" onclick="Auth.showAdminTab('clients')" data-tab="clients">👔 Clientes</button>
+                    <button class="btn btn-sm admin-tab" onclick="Auth.showAdminTab('signs')" data-tab="signs">📋 Carteles</button>
+                </div>
+
+                <!-- Users Tab -->
+                <div id="adminTabUsers" class="admin-tab-content">
+                    <h3 style="margin-bottom: 1rem;">Usuarios Registrados (${usersData.length})</h3>
+                    <div class="admin-users-list">
+                        ${usersData.map(u => `
+                            <div class="admin-user-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 0.5rem;">
+                                <div>
+                                    <strong>${u.displayName || 'Sin nombre'}</strong>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">${u.email || u.id.substring(0, 12)}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                                        🏠 ${u.propertiesCount} props | 👔 ${u.clientsCount} clientes | 📋 ${u.signsCount} carteles
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-primary" onclick="Auth.viewUserData('${u.id}')">
+                                    👁️ Ver Datos
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Properties Tab -->
+                <div id="adminTabProperties" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 1rem;">Todas las Propiedades (${globalStats.totalProperties})</h3>
+                    <div id="adminPropertiesList" style="max-height: 400px; overflow-y: auto;">
+                        ${this.renderAllProperties(usersData)}
+                    </div>
+                </div>
+
+                <!-- Clients Tab -->
+                <div id="adminTabClients" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 1rem;">Todos los Clientes (${globalStats.totalClients})</h3>
+                    <div id="adminClientsList" style="max-height: 400px; overflow-y: auto;">
+                        ${this.renderAllClients(usersData)}
+                    </div>
+                </div>
+
+                <!-- Signs Tab -->
+                <div id="adminTabSigns" class="admin-tab-content" style="display: none;">
+                    <h3 style="margin-bottom: 1rem;">Todos los Carteles (${globalStats.totalSigns})</h3>
+                    <div id="adminSignsList" style="max-height: 400px; overflow-y: auto;">
+                        ${this.renderAllSigns(usersData)}
+                    </div>
+                </div>
+
             </div>
         `;
 
+        // Store data for filtering
+        this.adminUsersData = usersData;
         modal.classList.add('active');
+    },
+
+    // Get all users with their complete data
+    async getAllUsersWithData() {
+        const usersSnapshot = await db.collection('users').get();
+        const usersData = [];
+
+        for (const userDoc of usersSnapshot.docs) {
+            const userId = userDoc.id;
+            const userData = userDoc.data();
+
+            // Get user's data subcollection
+            const dataDoc = await db.collection('users').doc(userId).collection('data').doc('main').get();
+            const data = dataDoc.exists ? dataDoc.data() : {};
+
+            usersData.push({
+                id: userId,
+                email: userData.email || null,
+                displayName: userData.displayName || null,
+                properties: data.properties || [],
+                clients: data.clients || [],
+                signs: data.signs || [],
+                followups: data.followups || [],
+                propertiesCount: (data.properties || []).length,
+                clientsCount: (data.clients || []).length,
+                signsCount: (data.signs || []).length
+            });
+        }
+
+        return usersData;
+    },
+
+    // Calculate global statistics
+    calculateGlobalStats(usersData) {
+        return {
+            totalUsers: usersData.length,
+            totalProperties: usersData.reduce((sum, u) => sum + u.propertiesCount, 0),
+            totalClients: usersData.reduce((sum, u) => sum + u.clientsCount, 0),
+            totalSigns: usersData.reduce((sum, u) => sum + u.signsCount, 0)
+        };
+    },
+
+    // Render all properties from all users
+    renderAllProperties(usersData, filterUserId = null) {
+        let allProperties = [];
+
+        usersData.forEach(user => {
+            if (filterUserId && filterUserId !== 'all' && user.id !== filterUserId) return;
+
+            user.properties.forEach(prop => {
+                allProperties.push({
+                    ...prop,
+                    userName: user.displayName || user.email || user.id.substring(0, 8),
+                    userId: user.id
+                });
+            });
+        });
+
+        if (allProperties.length === 0) {
+            return '<p style="color: var(--text-muted); text-align: center;">No hay propiedades</p>';
+        }
+
+        return allProperties.map(prop => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ${prop.status === 'disponible' ? '#10b981' : prop.status === 'reservada' ? '#f59e0b' : '#3b82f6'};">
+                <div>
+                    <strong>${prop.title || 'Sin título'}</strong>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        📍 ${prop.address || 'Sin dirección'} | 💰 $${(prop.price || 0).toLocaleString()}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--primary); margin-top: 0.25rem;">
+                        👤 ${prop.userName}
+                    </div>
+                </div>
+                <span style="padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.7rem; background: ${prop.status === 'disponible' ? '#10b981' : prop.status === 'reservada' ? '#f59e0b' : '#3b82f6'}; color: white;">
+                    ${prop.status || 'N/A'}
+                </span>
+            </div>
+        `).join('');
+    },
+
+    // Render all clients from all users
+    renderAllClients(usersData, filterUserId = null) {
+        let allClients = [];
+
+        usersData.forEach(user => {
+            if (filterUserId && filterUserId !== 'all' && user.id !== filterUserId) return;
+
+            user.clients.forEach(client => {
+                allClients.push({
+                    ...client,
+                    userName: user.displayName || user.email || user.id.substring(0, 8),
+                    userId: user.id
+                });
+            });
+        });
+
+        if (allClients.length === 0) {
+            return '<p style="color: var(--text-muted); text-align: center;">No hay clientes</p>';
+        }
+
+        return allClients.map(client => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 0.5rem;">
+                <div>
+                    <strong>${client.name || 'Sin nombre'}</strong>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        📞 ${client.phone || 'Sin tel.'} | ✉️ ${client.email || 'Sin email'}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--primary); margin-top: 0.25rem;">
+                        👤 ${client.userName}
+                    </div>
+                </div>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">
+                    ${client.type === 'comprador' ? '🏠 Comprador' : client.type === 'vendedor' ? '💰 Vendedor' : client.type === 'inquilino' ? '🔑 Inquilino' : '👤 Cliente'}
+                </span>
+            </div>
+        `).join('');
+    },
+
+    // Render all signs from all users
+    renderAllSigns(usersData, filterUserId = null) {
+        let allSigns = [];
+
+        usersData.forEach(user => {
+            if (filterUserId && filterUserId !== 'all' && user.id !== filterUserId) return;
+
+            user.signs.forEach(sign => {
+                allSigns.push({
+                    ...sign,
+                    userName: user.displayName || user.email || user.id.substring(0, 8),
+                    userId: user.id
+                });
+            });
+        });
+
+        if (allSigns.length === 0) {
+            return '<p style="color: var(--text-muted); text-align: center;">No hay carteles</p>';
+        }
+
+        return allSigns.map(sign => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid ${sign.type === 'venta' ? '#ef4444' : '#3b82f6'};">
+                <div>
+                    <strong>📞 ${sign.phone || 'Sin tel.'}</strong>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        📍 ${sign.address || 'Sin dirección'} | ${sign.type === 'venta' ? '🔴 Venta' : '🔵 Alquiler'}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--primary); margin-top: 0.25rem;">
+                        👤 ${sign.userName}
+                    </div>
+                </div>
+                <span style="padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.7rem; background: ${sign.contacted ? '#10b981' : '#f59e0b'}; color: white;">
+                    ${sign.contacted ? '✅ Contactado' : '⏳ Pendiente'}
+                </span>
+            </div>
+        `).join('');
+    },
+
+    // Show admin tab
+    showAdminTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.admin-tab-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.admin-tab').forEach(el => el.classList.remove('active'));
+
+        // Show selected tab
+        const tabId = 'adminTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+        document.getElementById(tabId).style.display = 'block';
+        document.querySelector(`.admin-tab[data-tab="${tabName}"]`).classList.add('active');
+    },
+
+    // Filter admin data by user
+    filterAdminData(userId) {
+        if (!this.adminUsersData) return;
+
+        const filteredData = userId === 'all' ? this.adminUsersData : this.adminUsersData.filter(u => u.id === userId);
+
+        // Update properties list
+        document.getElementById('adminPropertiesList').innerHTML = this.renderAllProperties(this.adminUsersData, userId);
+        document.getElementById('adminClientsList').innerHTML = this.renderAllClients(this.adminUsersData, userId);
+        document.getElementById('adminSignsList').innerHTML = this.renderAllSigns(this.adminUsersData, userId);
     },
 
     // View specific user's data
