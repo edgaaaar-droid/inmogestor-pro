@@ -1035,15 +1035,7 @@ const Auth = {
                 </div>
                 </div>
 
-                ${true ? `
-                <div style="margin-top:2rem; border-top:1px solid var(--border-color); padding-top:1rem;">
-                    <h3 style="color:var(--text-muted); font-size:1rem;">Zona de Mantenimiento (Visible Temporalmente)</h3>
-                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.5rem;">Si perdiste datos antiguos, usa esta herramienta.</p>
-                    <button id="recoveryBtn" class="btn btn-outline-danger btn-sm" onclick="Auth.handleLegacyRecovery()">
-                        🕵️ Buscar y Recuperar Datos Antiguos
-                    </button>
-                </div>
-                ` : ''}
+
             </div>
         `;
 
