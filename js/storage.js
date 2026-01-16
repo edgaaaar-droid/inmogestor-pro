@@ -15,6 +15,10 @@ const Storage = {
     // Current user ID for multi-user support
     currentUserId: null,
 
+    // User role info (secretary or owner)
+    userRole: null,
+    mainUserId: null,
+
     get(key) {
         try {
             const data = localStorage.getItem(key);
@@ -565,5 +569,65 @@ const Storage = {
                 console.error('Error migrando datos:', e);
             }
         }
+    },
+
+    // Initialize user role for sub-user system
+    async initUserRole() {
+        if (!this.currentUserId || typeof Auth === 'undefined') return;
+
+        try {
+            this.userRole = await Auth.getUserRole();
+            this.mainUserId = await Auth.getMainUserId();
+
+            // If sub-user, sync from main user's data
+            if (this.userRole?.role === 'secretary' && this.mainUserId) {
+                console.log('👥 Sub-usuario detectado, sincronizando con usuario principal...');
+                this.currentUserId = this.mainUserId; // Use main user's data path
+                await this.syncFromCloud();
+            }
+        } catch (e) {
+            console.error('Error initializing user role:', e);
+        }
+    },
+
+    // Save item as pending (for sub-users)
+    async savePending(type, data) {
+        if (!this.mainUserId) return false;
+
+        try {
+            const dataRef = db.collection('users').doc(this.mainUserId)
+                .collection('data').doc('main');
+            const dataDoc = await dataRef.get();
+            const existingData = dataDoc.exists ? dataDoc.data() : {};
+            const pending = existingData.pendingApprovals || [];
+
+            // Add ID and metadata to the data
+            data.id = this.generateId();
+            data.createdAt = new Date().toISOString();
+
+            pending.push({
+                type: type, // 'property', 'client', 'sign'
+                data: data,
+                addedBy: Auth.currentUser?.uid,
+                addedByName: Auth.currentUser?.displayName || Auth.currentUser?.email,
+                addedAt: new Date().toISOString()
+            });
+
+            await dataRef.update({ pendingApprovals: pending });
+
+            if (typeof App !== 'undefined' && App.showToast) {
+                App.showToast('✓ Enviado para aprobación', 'success');
+            }
+
+            return true;
+        } catch (e) {
+            console.error('Error saving pending:', e);
+            return false;
+        }
+    },
+
+    // Check if current user is a sub-user
+    isSecretary() {
+        return this.userRole?.role === 'secretary';
     }
 };

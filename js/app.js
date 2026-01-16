@@ -30,6 +30,12 @@ const App = {
         // Initialize Firebase sync (now with user context)
         Storage.initFirebase();
 
+        // Initialize user role for sub-user system
+        await Storage.initUserRole();
+
+        // Check for pending invitations (shows banner if any)
+        Auth.showInvitationBanner();
+
         // Update user display in sidebar
         this.updateUserDisplay(user);
 
@@ -82,6 +88,16 @@ const App = {
                     </div>
                 </div>
             `;
+
+            // Check if sub-user and update header
+            (async () => {
+                const role = await Auth.getUserRole();
+                if (role?.role === 'secretary') {
+                    sidebarHeader.querySelector('.logo > div').insertAdjacentHTML('beforeend',
+                        '<span style="font-size:0.65rem;color:#3b82f6;font-weight:600;">👥 SECRETARIO</span>'
+                    );
+                }
+            })();
         }
 
         // Update sidebar footer with user actions
@@ -89,29 +105,40 @@ const App = {
         if (sidebarFooter && user) {
             const isAdmin = Auth.isAdmin();
 
-            // Add user actions section
-            const userActionsHtml = `
-                <div class="user-actions-section" style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border-color);">
-                    ${isAdmin ? `
-                        <button class="backup-btn" onclick="Auth.showAdminPanel()" title="Panel Admin" style="width:100%; margin-bottom:0.5rem;">
-                            <span>👑</span><span class="nav-text">Panel Admin</span>
-                        </button>
-                    ` : ''}
-                    <button class="backup-btn" onclick="Auth.showChangePasswordModal()" title="Cambiar Contraseña">
-                        <span>🔐</span><span class="nav-text">Cambiar Clave</span>
-                    </button>
-                    <button class="backup-btn" onclick="Auth.logout()" title="Cerrar Sesión" style="background:var(--danger); border-color:var(--danger); color:white;">
-                        <span>🚪</span><span class="nav-text">Salir</span>
-                    </button>
-                </div>
-            `;
+            // Add user actions section (async to check if sub-user)
+            (async () => {
+                const role = await Auth.getUserRole();
+                const isSecretary = role?.role === 'secretary';
+                const pendingCount = isSecretary ? 0 : await Auth.getPendingApprovalsCount();
 
-            // Append after existing backup buttons
-            const existingActions = sidebarFooter.querySelector('.user-actions-section');
-            if (existingActions) {
-                existingActions.remove();
-            }
-            sidebarFooter.insertAdjacentHTML('beforeend', userActionsHtml);
+                const userActionsHtml = `
+                    <div class="user-actions-section" style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border-color);">
+                        ${isAdmin ? `
+                            <button class="backup-btn" onclick="Auth.showAdminPanel()" title="Panel Admin" style="width:100%; margin-bottom:0.5rem;">
+                                <span>👑</span><span class="nav-text">Panel Admin</span>
+                            </button>
+                        ` : ''}
+                        ${!isSecretary ? `
+                            <button class="backup-btn" onclick="Auth.showSubUsersPanel()" title="Mis Secretarios" style="width:100%; margin-bottom:0.5rem;">
+                                <span>👥</span><span class="nav-text">Mis Secretarios ${pendingCount > 0 ? `<span style="background:#f59e0b;color:white;padding:0.1rem 0.4rem;border-radius:10px;font-size:0.7rem;margin-left:0.25rem;">${pendingCount}</span>` : ''}</span>
+                            </button>
+                        ` : ''}
+                        <button class="backup-btn" onclick="Auth.showChangePasswordModal()" title="Cambiar Contraseña">
+                            <span>🔐</span><span class="nav-text">Cambiar Clave</span>
+                        </button>
+                        <button class="backup-btn" onclick="Auth.logout()" title="Cerrar Sesión" style="background:var(--danger); border-color:var(--danger); color:white;">
+                            <span>🚪</span><span class="nav-text">Salir</span>
+                        </button>
+                    </div>
+                `;
+
+                // Remove existing and add new
+                const existingActions = sidebarFooter.querySelector('.user-actions-section');
+                if (existingActions) {
+                    existingActions.remove();
+                }
+                sidebarFooter.insertAdjacentHTML('beforeend', userActionsHtml);
+            })();
         }
     },
 

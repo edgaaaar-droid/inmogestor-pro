@@ -675,6 +675,477 @@ const Auth = {
         Storage.refreshUI();
 
         App.showToast('✓ Volviste a tu cuenta', 'success');
+    },
+
+    // ===== SUB-USERS (SECRETARY) SYSTEM =====
+
+    // Check if current user is a sub-user (secretary)
+    async isSubUser() {
+        if (!this.currentUser) return false;
+
+        const userDoc = await db.collection('users').doc(this.currentUser.uid).get();
+        if (!userDoc.exists) return false;
+
+        return userDoc.data().parentUserId ? true : false;
+    },
+
+    // Get the main user ID (returns own ID if not sub-user)
+    async getMainUserId() {
+        if (!this.currentUser) return null;
+
+        const userDoc = await db.collection('users').doc(this.currentUser.uid).get();
+        if (!userDoc.exists) return this.currentUser.uid;
+
+        return userDoc.data().parentUserId || this.currentUser.uid;
+    },
+
+    // Get user's role info
+    async getUserRole() {
+        if (!this.currentUser) return null;
+
+        const userDoc = await db.collection('users').doc(this.currentUser.uid).get();
+        if (!userDoc.exists) return { role: 'owner', canEdit: true, canDelete: true };
+
+        const data = userDoc.data();
+        if (data.parentUserId) {
+            return {
+                role: 'secretary',
+                parentUserId: data.parentUserId,
+                canEdit: false,
+                canDelete: false,
+                canAdd: true // Adds go to pending
+            };
+        }
+
+        return { role: 'owner', canEdit: true, canDelete: true, canAdd: true };
+    },
+
+    // Invite a sub-user (secretary)
+    async inviteSubUser(email) {
+        if (!this.currentUser) {
+            return { success: false, error: 'No hay usuario autenticado' };
+        }
+
+        // Check if trying to invite self
+        if (email === this.currentUser.email) {
+            return { success: false, error: 'No puedes invitarte a ti mismo' };
+        }
+
+        try {
+            // Get current user's document
+            const userRef = db.collection('users').doc(this.currentUser.uid);
+            const userDoc = await userRef.get();
+            const userData = userDoc.data() || {};
+
+            // Get or create subUsers array
+            const subUsers = userData.subUsers || [];
+
+            // Check if already invited
+            if (subUsers.find(s => s.email === email)) {
+                return { success: false, error: 'Este email ya fue invitado' };
+            }
+
+            // Add invitation
+            subUsers.push({
+                email: email,
+                role: 'secretary',
+                invitedAt: new Date().toISOString(),
+                status: 'pending'
+            });
+
+            await userRef.update({ subUsers });
+
+            return { success: true, message: `Invitación enviada a ${email}` };
+        } catch (error) {
+            console.error('Error inviting sub-user:', error);
+            return { success: false, error: 'Error al enviar invitación' };
+        }
+    },
+
+    // Check for pending invitations for current user
+    async checkPendingInvitations() {
+        if (!this.currentUser) return [];
+
+        try {
+            // Search all users to find invitations for this email
+            const usersSnapshot = await db.collection('users').get();
+            const invitations = [];
+
+            usersSnapshot.forEach(doc => {
+                const data = doc.data();
+                const subUsers = data.subUsers || [];
+                const invitation = subUsers.find(s =>
+                    s.email === this.currentUser.email && s.status === 'pending'
+                );
+                if (invitation) {
+                    invitations.push({
+                        mainUserId: doc.id,
+                        mainUserName: data.displayName || data.email,
+                        mainUserEmail: data.email,
+                        invitedAt: invitation.invitedAt
+                    });
+                }
+            });
+
+            return invitations;
+        } catch (error) {
+            console.error('Error checking invitations:', error);
+            return [];
+        }
+    },
+
+    // Accept invitation to become sub-user
+    async acceptInvitation(mainUserId) {
+        if (!this.currentUser) {
+            return { success: false, error: 'No hay usuario autenticado' };
+        }
+
+        try {
+            // Update main user's subUsers list
+            const mainUserRef = db.collection('users').doc(mainUserId);
+            const mainUserDoc = await mainUserRef.get();
+
+            if (!mainUserDoc.exists) {
+                return { success: false, error: 'Usuario principal no encontrado' };
+            }
+
+            const mainUserData = mainUserDoc.data();
+            const subUsers = mainUserData.subUsers || [];
+            const invitationIndex = subUsers.findIndex(s =>
+                s.email === this.currentUser.email && s.status === 'pending'
+            );
+
+            if (invitationIndex === -1) {
+                return { success: false, error: 'Invitación no encontrada' };
+            }
+
+            // Update invitation status
+            subUsers[invitationIndex].status = 'active';
+            subUsers[invitationIndex].acceptedAt = new Date().toISOString();
+            subUsers[invitationIndex].subUserId = this.currentUser.uid;
+            await mainUserRef.update({ subUsers });
+
+            // Update current user's document to link to main user
+            await db.collection('users').doc(this.currentUser.uid).update({
+                parentUserId: mainUserId,
+                role: 'secretary'
+            });
+
+            return {
+                success: true,
+                message: `Ahora eres secretario de ${mainUserData.displayName || mainUserData.email}`
+            };
+        } catch (error) {
+            console.error('Error accepting invitation:', error);
+            return { success: false, error: 'Error al aceptar invitación' };
+        }
+    },
+
+    // Reject invitation
+    async rejectInvitation(mainUserId) {
+        if (!this.currentUser) return { success: false };
+
+        try {
+            const mainUserRef = db.collection('users').doc(mainUserId);
+            const mainUserDoc = await mainUserRef.get();
+
+            if (!mainUserDoc.exists) return { success: false };
+
+            const subUsers = (mainUserDoc.data().subUsers || []).filter(s =>
+                s.email !== this.currentUser.email
+            );
+
+            await mainUserRef.update({ subUsers });
+            return { success: true };
+        } catch (error) {
+            return { success: false };
+        }
+    },
+
+    // Get list of sub-users for current user
+    async getSubUsers() {
+        if (!this.currentUser) return [];
+
+        try {
+            const userDoc = await db.collection('users').doc(this.currentUser.uid).get();
+            if (!userDoc.exists) return [];
+
+            return userDoc.data().subUsers || [];
+        } catch (error) {
+            return [];
+        }
+    },
+
+    // Remove a sub-user
+    async removeSubUser(email) {
+        if (!this.currentUser) return { success: false };
+
+        try {
+            const userRef = db.collection('users').doc(this.currentUser.uid);
+            const userDoc = await userRef.get();
+
+            if (!userDoc.exists) return { success: false };
+
+            const subUsers = (userDoc.data().subUsers || []).filter(s => s.email !== email);
+            await userRef.update({ subUsers });
+
+            // Also remove parentUserId from the sub-user if they exist
+            const subUserQuery = await db.collection('users').where('email', '==', email).get();
+            subUserQuery.forEach(async (doc) => {
+                if (doc.data().parentUserId === this.currentUser.uid) {
+                    await doc.ref.update({
+                        parentUserId: firebase.firestore.FieldValue.delete(),
+                        role: firebase.firestore.FieldValue.delete()
+                    });
+                }
+            });
+
+            return { success: true };
+        } catch (error) {
+            return { success: false };
+        }
+    },
+
+    // Get pending approvals count for main user
+    async getPendingApprovalsCount() {
+        const mainUserId = await this.getMainUserId();
+        if (!mainUserId || mainUserId !== this.currentUser?.uid) return 0;
+
+        try {
+            const dataDoc = await db.collection('users').doc(mainUserId)
+                .collection('data').doc('main').get();
+            if (!dataDoc.exists) return 0;
+
+            const data = dataDoc.data();
+            return (data.pendingApprovals || []).length;
+        } catch (error) {
+            return 0;
+        }
+    },
+
+    // Show sub-users management panel
+    async showSubUsersPanel() {
+        const subUsers = await this.getSubUsers();
+        const pendingCount = await this.getPendingApprovalsCount();
+
+        const modal = document.getElementById('adminModal');
+        if (!modal) return;
+
+        modal.querySelector('.modal-content').innerHTML = `
+            <div class="modal-header">
+                <h2>👥 Mis Secretarios</h2>
+                <button class="modal-close" onclick="document.getElementById('adminModal').classList.remove('active')">×</button>
+            </div>
+            <div class="modal-body">
+                ${pendingCount > 0 ? `
+                    <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; cursor: pointer;" onclick="Auth.showPendingApprovals()">
+                        <strong>🔔 ${pendingCount} datos pendientes de aprobación</strong>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">Clic aquí para revisar y aprobar</div>
+                    </div>
+                ` : ''}
+
+                <h3 style="margin-bottom: 1rem;">Invitar Nuevo Secretario</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    <input type="email" id="inviteEmail" class="form-control" placeholder="Email del secretario">
+                    <button class="btn btn-primary" onclick="Auth.handleInviteSubUser()">Invitar</button>
+                </div>
+
+                <h3 style="margin-bottom: 1rem;">Secretarios Actuales (${subUsers.length})</h3>
+                <div class="sub-users-list">
+                    ${subUsers.length === 0 ? '<p style="color: var(--text-muted);">No tienes secretarios aún</p>' : ''}
+                    ${subUsers.map(s => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 0.5rem;">
+                            <div>
+                                <strong>${s.email}</strong>
+                                <div style="font-size: 0.8rem; color: ${s.status === 'active' ? 'var(--success)' : 'var(--warning)'};">
+                                    ${s.status === 'active' ? '✅ Activo' : '⏳ Pendiente de aceptar'}
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="Auth.handleRemoveSubUser('${s.email}')">
+                                ✕ Remover
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        modal.classList.add('active');
+    },
+
+    // Handle invite button click
+    async handleInviteSubUser() {
+        const email = document.getElementById('inviteEmail').value.trim();
+        if (!email) {
+            App.showToast('Ingresa un email', 'error');
+            return;
+        }
+
+        const result = await this.inviteSubUser(email);
+        if (result.success) {
+            App.showToast(result.message, 'success');
+            document.getElementById('inviteEmail').value = '';
+            this.showSubUsersPanel(); // Refresh panel
+        } else {
+            App.showToast(result.error, 'error');
+        }
+    },
+
+    // Handle remove sub-user
+    async handleRemoveSubUser(email) {
+        if (!confirm(`¿Remover a ${email} como secretario?`)) return;
+
+        const result = await this.removeSubUser(email);
+        if (result.success) {
+            App.showToast('Secretario removido', 'success');
+            this.showSubUsersPanel();
+        }
+    },
+
+    // Show pending approvals
+    async showPendingApprovals() {
+        const mainUserId = await this.getMainUserId();
+
+        try {
+            const dataDoc = await db.collection('users').doc(mainUserId)
+                .collection('data').doc('main').get();
+            const data = dataDoc.data() || {};
+            const pending = data.pendingApprovals || [];
+
+            const modal = document.getElementById('adminModal');
+            modal.querySelector('.modal-content').innerHTML = `
+                <div class="modal-header">
+                    <h2>🔔 Pendientes de Aprobación</h2>
+                    <button class="modal-close" onclick="document.getElementById('adminModal').classList.remove('active')">×</button>
+                </div>
+                <div class="modal-body">
+                    <button class="btn btn-secondary" onclick="Auth.showSubUsersPanel()" style="margin-bottom: 1rem;">
+                        ← Volver a Secretarios
+                    </button>
+                    
+                    ${pending.length === 0 ? '<p style="color: var(--text-muted);">No hay datos pendientes</p>' : ''}
+                    ${pending.map((item, idx) => `
+                        <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 0.75rem; border-left: 4px solid #f59e0b;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <span style="background: #f59e0b; color: white; padding: 0.1rem 0.5rem; border-radius: 12px; font-size: 0.7rem;">
+                                        ${item.type === 'property' ? '🏠 Propiedad' : item.type === 'client' ? '👔 Cliente' : '📋 Cartel'}
+                                    </span>
+                                    <h4 style="margin: 0.5rem 0;">${item.data.title || item.data.name || item.data.phone || 'Sin título'}</h4>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                                        Agregado por: ${item.addedByName || 'Secretario'}<br>
+                                        ${new Date(item.addedAt).toLocaleString('es-AR')}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-sm btn-primary" onclick="Auth.approvePending(${idx})">✓ Aprobar</button>
+                                    <button class="btn btn-sm btn-secondary" onclick="Auth.rejectPending(${idx})">✕ Rechazar</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error loading pending:', error);
+        }
+    },
+
+    // Approve pending item
+    async approvePending(index) {
+        const mainUserId = await this.getMainUserId();
+
+        try {
+            const dataRef = db.collection('users').doc(mainUserId).collection('data').doc('main');
+            const dataDoc = await dataRef.get();
+            const data = dataDoc.data() || {};
+            const pending = data.pendingApprovals || [];
+
+            if (index >= pending.length) return;
+
+            const item = pending[index];
+
+            // Add to appropriate list
+            const targetKey = item.type === 'property' ? 'properties' :
+                item.type === 'client' ? 'clients' : 'signs';
+            const targetList = data[targetKey] || [];
+            targetList.push(item.data);
+
+            // Remove from pending
+            pending.splice(index, 1);
+
+            await dataRef.update({
+                [targetKey]: targetList,
+                pendingApprovals: pending
+            });
+
+            App.showToast('✓ Dato aprobado', 'success');
+            this.showPendingApprovals();
+            Storage.syncFromCloud();
+        } catch (error) {
+            console.error('Error approving:', error);
+            App.showToast('Error al aprobar', 'error');
+        }
+    },
+
+    // Reject pending item
+    async rejectPending(index) {
+        if (!confirm('¿Rechazar este dato?')) return;
+
+        const mainUserId = await this.getMainUserId();
+
+        try {
+            const dataRef = db.collection('users').doc(mainUserId).collection('data').doc('main');
+            const dataDoc = await dataRef.get();
+            const data = dataDoc.data() || {};
+            const pending = data.pendingApprovals || [];
+
+            pending.splice(index, 1);
+
+            await dataRef.update({ pendingApprovals: pending });
+
+            App.showToast('Dato rechazado', 'info');
+            this.showPendingApprovals();
+        } catch (error) {
+            console.error('Error rejecting:', error);
+        }
+    },
+
+    // Show invitation banner for sub-users
+    async showInvitationBanner() {
+        const invitations = await this.checkPendingInvitations();
+        if (invitations.length === 0) return;
+
+        const inv = invitations[0];
+        const banner = document.createElement('div');
+        banner.id = 'invitationBanner';
+        banner.className = 'update-banner';
+        banner.style.background = 'linear-gradient(135deg, #3b82f6, #1d4ed8)';
+        banner.innerHTML = `
+            <span>📩 ${inv.mainUserName} te invitó a ser su secretario</span>
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="Auth.handleAcceptInvitation('${inv.mainUserId}')" class="btn btn-sm" style="background: white; color: #1d4ed8;">Aceptar</button>
+                <button onclick="Auth.handleRejectInvitation('${inv.mainUserId}')" class="btn btn-sm">Rechazar</button>
+            </div>
+        `;
+        document.body.appendChild(banner);
+    },
+
+    async handleAcceptInvitation(mainUserId) {
+        const result = await this.acceptInvitation(mainUserId);
+        document.getElementById('invitationBanner')?.remove();
+
+        if (result.success) {
+            App.showToast(result.message, 'success');
+            location.reload(); // Reload to sync with main user's data
+        } else {
+            App.showToast(result.error, 'error');
+        }
+    },
+
+    async handleRejectInvitation(mainUserId) {
+        await this.rejectInvitation(mainUserId);
+        document.getElementById('invitationBanner')?.remove();
+        App.showToast('Invitación rechazada', 'info');
     }
 };
-
