@@ -382,7 +382,14 @@ const Signs = {
         this.renderPhotoPreview();
 
         // Init mini map after modal is visible
-        setTimeout(() => this.initMiniMap(sign?.lat, sign?.lng), 100);
+        setTimeout(() => {
+            this.initMiniMap(sign?.lat, sign?.lng);
+
+            // Auto-detect GPS location for new signs
+            if (!isEdit && navigator.geolocation) {
+                this.autoDetectLocation();
+            }
+        }, 100);
 
         // Load custom fields
         if (sign?.customFields) {
@@ -391,6 +398,43 @@ const Signs = {
                 this.addCustomField(key, value);
             });
         }
+    },
+
+    // Auto-detect GPS location from device
+    autoDetectLocation() {
+        App.showToast('📍 Obteniendo ubicación GPS...', 'info');
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+
+                // Update map
+                if (this.miniMap) {
+                    this.miniMap.setView([lat, lng], 16);
+
+                    if (this.miniMapMarker) {
+                        this.miniMap.removeLayer(this.miniMapMarker);
+                    }
+                    this.miniMapMarker = L.marker([lat, lng]).addTo(this.miniMap);
+                }
+
+                // Update input fields
+                document.getElementById('signLat').value = lat.toFixed(6);
+                document.getElementById('signLng').value = lng.toFixed(6);
+
+                App.showToast('✓ Ubicación GPS detectada', 'success');
+            },
+            (error) => {
+                console.log('GPS error:', error);
+                App.showToast('No se pudo obtener ubicación GPS', 'warning');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
+            }
+        );
     },
 
     closeModal() {
