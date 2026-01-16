@@ -9,8 +9,19 @@ const App = {
         if (!user) {
             // Show login screen
             this.showLoginRequired();
+            // Hide loading if exists
+            const loader = document.getElementById('appLoader');
+            if (loader) loader.style.display = 'none';
             return;
         }
+
+        // Show App Container (Security: Reveal only now)
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) appContainer.style.display = 'flex';
+
+        // Hide loading
+        const loader = document.getElementById('appLoader');
+        if (loader) loader.style.display = 'none';
 
         // Set current user in storage
         Storage.setCurrentUser(user.uid);

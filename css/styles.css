@@ -67,7 +67,8 @@ body {
 }
 
 .app-container {
-    display: flex;
+    display: none;
+    /* Security: Hidden by default until auth check */
     min-height: 100vh;
 }
 
