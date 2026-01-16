@@ -30,6 +30,13 @@ const Auth = {
             // Update profile with display name
             await result.user.updateProfile({ displayName });
 
+            // Create user document in Firestore
+            await db.collection('users').doc(result.user.uid).set({
+                email: email,
+                displayName: displayName,
+                createdAt: new Date().toISOString()
+            });
+
             // Migrate existing local data to this new user
             await Storage.migrateLocalDataToUser(result.user.uid);
 
@@ -44,6 +51,17 @@ const Auth = {
     async login(email, password) {
         try {
             const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+
+            // Ensure user document exists in Firestore (for users registered before this feature)
+            const userDoc = await db.collection('users').doc(result.user.uid).get();
+            if (!userDoc.exists) {
+                await db.collection('users').doc(result.user.uid).set({
+                    email: result.user.email,
+                    displayName: result.user.displayName || 'Usuario',
+                    createdAt: new Date().toISOString()
+                });
+            }
+
             return { success: true, user: result.user };
         } catch (error) {
             console.error('Login error:', error);
