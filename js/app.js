@@ -2,7 +2,20 @@
 const App = {
     currentSection: 'dashboard',
 
-    init() {
+    async init() {
+        // Wait for auth state
+        const user = await Auth.init();
+
+        if (!user) {
+            // Show login screen
+            this.showLoginRequired();
+            return;
+        }
+
+        // Set current user in storage
+        Storage.setCurrentUser(user.uid);
+
+        // Continue normal initialization
         this.bindEvents();
         this.loadTheme();
         this.updateDate();
@@ -14,8 +27,11 @@ const App = {
         this.updateDashboard();
         this.handleHash();
 
-        // Initialize Firebase sync
+        // Initialize Firebase sync (now with user context)
         Storage.initFirebase();
+
+        // Update user display in sidebar
+        this.updateUserDisplay(user);
 
         // Modal close handlers
         document.querySelectorAll('.modal-overlay, .modal-cancel').forEach(el => {
@@ -29,6 +45,74 @@ const App = {
                 el.closest('.modal').classList.remove('active');
             });
         });
+    },
+
+    showLoginRequired() {
+        // Create login required overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'login-required-overlay';
+        overlay.id = 'loginRequiredOverlay';
+        overlay.innerHTML = `
+            <div class="login-prompt">
+                <img src="img/profile.jpg" alt="InmoGestor" class="login-prompt-logo">
+                <h2>InmoGestor Pro</h2>
+                <p>Inicia sesión para acceder a tu sistema de gestión inmobiliaria</p>
+                <button class="btn btn-primary" onclick="Auth.showLoginModal()">
+                    🔐 Iniciar Sesión
+                </button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+    },
+
+    updateUserDisplay(user) {
+        const sidebarHeader = document.querySelector('.sidebar-header');
+        if (sidebarHeader && user) {
+            const displayName = user.displayName || user.email.split('@')[0];
+            const isAdmin = Auth.isAdmin();
+
+            // Update the sidebar header to show user info
+            sidebarHeader.innerHTML = `
+                <div class="logo">
+                    <img src="img/profile.jpg" alt="${displayName}" class="logo-avatar">
+                    <div style="display:flex;flex-direction:column;line-height:1.1;">
+                        <span class="logo-text" style="font-size:1.1rem;">${displayName}</span>
+                        <span style="font-size:0.75rem;color:var(--text-muted);">${user.email}</span>
+                        ${isAdmin ? '<span style="font-size:0.65rem;color:var(--primary);font-weight:600;">👑 ADMIN</span>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update sidebar footer with user actions
+        const sidebarFooter = document.querySelector('.sidebar-footer');
+        if (sidebarFooter && user) {
+            const isAdmin = Auth.isAdmin();
+
+            // Add user actions section
+            const userActionsHtml = `
+                <div class="user-actions-section" style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border-color);">
+                    ${isAdmin ? `
+                        <button class="backup-btn" onclick="Auth.showAdminPanel()" title="Panel Admin" style="width:100%; margin-bottom:0.5rem;">
+                            <span>👑</span><span class="nav-text">Panel Admin</span>
+                        </button>
+                    ` : ''}
+                    <button class="backup-btn" onclick="Auth.showChangePasswordModal()" title="Cambiar Contraseña">
+                        <span>🔐</span><span class="nav-text">Cambiar Clave</span>
+                    </button>
+                    <button class="backup-btn" onclick="Auth.logout()" title="Cerrar Sesión" style="background:var(--danger); border-color:var(--danger); color:white;">
+                        <span>🚪</span><span class="nav-text">Salir</span>
+                    </button>
+                </div>
+            `;
+
+            // Append after existing backup buttons
+            const existingActions = sidebarFooter.querySelector('.user-actions-section');
+            if (existingActions) {
+                existingActions.remove();
+            }
+            sidebarFooter.insertAdjacentHTML('beforeend', userActionsHtml);
+        }
     },
 
     bindEvents() {

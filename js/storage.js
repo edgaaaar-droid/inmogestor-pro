@@ -12,6 +12,9 @@ const Storage = {
         SIGNS: 'inmogestor_signs'
     },
 
+    // Current user ID for multi-user support
+    currentUserId: null,
+
     get(key) {
         try {
             const data = localStorage.getItem(key);
@@ -305,17 +308,34 @@ const Storage = {
     isRemoteUpdate: false, // Flag to prevent sync loops
     realtimeUnsubscribe: null, // Store unsubscribe function
 
+    // Set current user ID
+    setCurrentUser(userId) {
+        this.currentUserId = userId;
+        console.log('👤 Usuario establecido:', userId);
+    },
+
+    // Get Firestore document path for current user
+    getUserDocPath() {
+        if (!this.currentUserId) {
+            console.warn('No hay usuario autenticado');
+            return null;
+        }
+        return `users/${this.currentUserId}/data/main`;
+    },
+
     async initFirebase() {
         try {
             if (typeof db !== 'undefined') {
                 this.firebaseEnabled = true;
                 console.log('✓ Firebase conectado');
 
-                // Initial sync from cloud
-                await this.syncFromCloud();
-
-                // Start real-time listener
-                this.startRealtimeListener();
+                // Wait for user authentication before syncing
+                if (this.currentUserId) {
+                    // Initial sync from cloud
+                    await this.syncFromCloud();
+                    // Start real-time listener
+                    this.startRealtimeListener();
+                }
             }
         } catch (e) {
             console.log('Firebase no disponible, usando solo localStorage');
@@ -325,27 +345,33 @@ const Storage = {
 
     // Real-time listener for cross-device sync
     startRealtimeListener() {
-        if (!this.firebaseEnabled || this.realtimeUnsubscribe) return;
+        if (!this.firebaseEnabled || this.realtimeUnsubscribe || !this.currentUserId) return;
+
+        const docPath = this.getUserDocPath();
+        if (!docPath) return;
 
         console.log('🔄 Iniciando listener en tiempo real...');
 
-        this.realtimeUnsubscribe = db.collection('userData').doc('main').onSnapshot((doc) => {
-            // Skip if this is a local change we just pushed
-            if (this.syncInProgress || this.isRemoteUpdate) return;
+        // Parse the path to get collection and document
+        const pathParts = docPath.split('/');
+        this.realtimeUnsubscribe = db.collection(pathParts[0]).doc(pathParts[1])
+            .collection(pathParts[2]).doc(pathParts[3]).onSnapshot((doc) => {
+                // Skip if this is a local change we just pushed
+                if (this.syncInProgress || this.isRemoteUpdate) return;
 
-            if (doc.exists) {
-                const cloudData = doc.data();
-                const localLastSync = localStorage.getItem('inmogestor_lastSync');
+                if (doc.exists) {
+                    const cloudData = doc.data();
+                    const localLastSync = localStorage.getItem('inmogestor_lastSync');
 
-                // Check if cloud data is newer than our local data
-                if (cloudData.lastSync && cloudData.lastSync !== localLastSync) {
-                    console.log('🔄 Cambios detectados desde otro dispositivo');
-                    this.applyRemoteChanges(cloudData);
+                    // Check if cloud data is newer than our local data
+                    if (cloudData.lastSync && cloudData.lastSync !== localLastSync) {
+                        console.log('🔄 Cambios detectados desde otro dispositivo');
+                        this.applyRemoteChanges(cloudData);
+                    }
                 }
-            }
-        }, (error) => {
-            console.error('Error en listener tiempo real:', error);
-        });
+            }, (error) => {
+                console.error('Error en listener tiempo real:', error);
+            });
     },
 
     // Apply changes from remote device
@@ -409,7 +435,10 @@ const Storage = {
     },
 
     async syncToCloud() {
-        if (!this.firebaseEnabled || this.syncInProgress || this.isRemoteUpdate) return;
+        if (!this.firebaseEnabled || this.syncInProgress || this.isRemoteUpdate || !this.currentUserId) return;
+
+        const docPath = this.getUserDocPath();
+        if (!docPath) return;
 
         try {
             this.syncInProgress = true;
@@ -425,7 +454,10 @@ const Storage = {
                 lastSync: syncTime
             };
 
-            await db.collection('userData').doc('main').set(data);
+            // Parse the path to get collection and document
+            const pathParts = docPath.split('/');
+            await db.collection(pathParts[0]).doc(pathParts[1])
+                .collection(pathParts[2]).doc(pathParts[3]).set(data);
 
             // Store sync time locally to avoid re-applying our own changes
             localStorage.setItem('inmogestor_lastSync', syncTime);
@@ -441,10 +473,17 @@ const Storage = {
     },
 
     async syncFromCloud() {
-        if (!this.firebaseEnabled) return;
+        if (!this.firebaseEnabled || !this.currentUserId) return;
+
+        const docPath = this.getUserDocPath();
+        if (!docPath) return;
 
         try {
-            const doc = await db.collection('userData').doc('main').get();
+            // Parse the path to get collection and document
+            const pathParts = docPath.split('/');
+            const doc = await db.collection(pathParts[0]).doc(pathParts[1])
+                .collection(pathParts[2]).doc(pathParts[3]).get();
+
             if (doc.exists) {
                 const data = doc.data();
                 // Only sync if cloud data is newer or local is empty
@@ -481,9 +520,50 @@ const Storage = {
 
     // Auto-sync after save operations
     triggerCloudSync() {
-        if (this.firebaseEnabled) {
+        if (this.firebaseEnabled && this.currentUserId) {
             clearTimeout(this.syncTimeout);
             this.syncTimeout = setTimeout(() => this.syncToCloud(), 2000);
+        }
+    },
+
+    // Migrate existing local data to new user account
+    async migrateLocalDataToUser(userId) {
+        // Get existing local data
+        const localData = {
+            properties: this.getProperties(),
+            clients: this.getClients(),
+            followups: this.getFollowups(),
+            colleagues: this.getColleagues(),
+            sales: this.getSales(),
+            signs: this.getSigns(),
+            settings: this.getSettings()
+        };
+
+        // Check if there's data to migrate
+        const hasData = localData.properties.length > 0 ||
+            localData.clients.length > 0 ||
+            localData.followups.length > 0;
+
+        if (hasData && this.firebaseEnabled) {
+            try {
+                // Set user ID temporarily for migration
+                this.currentUserId = userId;
+
+                // Upload to new user's Firestore path
+                const docPath = this.getUserDocPath();
+                const pathParts = docPath.split('/');
+
+                await db.collection(pathParts[0]).doc(pathParts[1])
+                    .collection(pathParts[2]).doc(pathParts[3]).set({
+                        ...localData,
+                        lastSync: new Date().toISOString(),
+                        migratedAt: new Date().toISOString()
+                    });
+
+                console.log('✓ Datos locales migrados al nuevo usuario');
+            } catch (e) {
+                console.error('Error migrando datos:', e);
+            }
         }
     }
 };
