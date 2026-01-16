@@ -248,8 +248,18 @@ const Signs = {
                     <label>Fotos del Cartel</label>
                     <div class="image-upload-zone" id="signPhotoZone" style="border: 2px dashed var(--border-color); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.3s;">
                         <input type="file" id="signPhotoInput" multiple accept="image/*" hidden>
+                        <input type="file" id="signCameraInput" accept="image/*" capture="environment" hidden>
+                        
                         <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📷</div>
-                        <p style="margin: 0; color: var(--text-secondary);">Arrastra fotos aquí, haz clic para seleccionar, o <strong>pega (Ctrl+V)</strong></p>
+                        <p style="margin: 0; color: var(--text-secondary); margin-bottom: 1rem;">Arrastra fotos o selecciona:</p>
+                        
+                        <div style="display:flex; gap:0.5rem; justify-content:center;">
+                             <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('signPhotoInput').click()">📁 Galería</button>
+                             <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('signCameraInput').click()">📷 Tomar Foto</button>
+                        </div>
+                        <div id="ocrStatus" style="display:none; color:var(--primary); font-size:0.85rem; margin-top:0.75rem; font-weight:500;">
+                            🤖 Analizando imagen en busca de teléfono...
+                        </div>
                     </div>
                     <div id="signPhotoPreview" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;"></div>
                 </div>
@@ -368,7 +378,16 @@ const Signs = {
             uploadZone.style.background = 'transparent';
         });
         uploadZone.addEventListener('drop', (e) => this.handleImageDrop(e));
-        photoInput.addEventListener('change', (e) => this.handleImages(e));
+        photoInput.addEventListener('change', (e) => {
+            this.handleImages(e);
+            if (e.target.files[0]) this.scanImageForPhone(e.target.files[0]);
+        });
+
+        // Camera event
+        document.getElementById('signCameraInput').addEventListener('change', (e) => {
+            this.handleImages(e);
+            if (e.target.files[0]) this.scanImageForPhone(e.target.files[0]);
+        });
 
         document.getElementById('signForm').addEventListener('submit', (e) => this.handleSubmit(e));
 
@@ -482,7 +501,45 @@ const Signs = {
                 const base64 = await Storage.processImage(file);
                 this.currentPhotos.push(base64);
                 this.renderPhotoPreview();
+                this.scanImageForPhone(file);
             }
+        }
+    },
+
+    async scanImageForPhone(file) {
+        // Simple OCR check
+        if (typeof Tesseract === 'undefined') return;
+
+        const status = document.getElementById('ocrStatus');
+        if (status) status.style.display = 'block';
+
+        try {
+            const { data: { text } } = await Tesseract.recognize(file, 'eng');
+
+            // Regex for numbers: 09xx xxx xxx or 021 xxx xxxx (allowing spaces/dashes)
+            // Flexible pattern: (09\d|021|\+595) followed by 6-8 digits
+            const phoneRegex = /(?:09[6-9]\d|021|\+595)[\s-]*\d{3}[\s-]*\d{3,4}/g;
+            const matches = text.match(phoneRegex);
+
+            if (matches && matches.length > 0) {
+                // Clean detected number
+                const foundNumber = matches[0].replace(/[^\d+]/g, ''); // keep digits and plus
+
+                const currentPhone = document.getElementById('signPhone').value;
+
+                // If field empty or user confirms replacement
+                if (!currentPhone || confirm(`🤖 OCR detectó un número: ${matches[0]}\n\n¿Quieres usarlo?`)) {
+                    document.getElementById('signPhone').value = matches[0]; // Use original format or foundNumber?
+                    App.showToast('✓ Teléfono detectado', 'success');
+                }
+            } else {
+                // Try searching just for 6+ digits if strict regex fails? 
+                // No, too many false positives. Stick to prefix.
+            }
+        } catch (err) {
+            console.error('OCR Error:', err);
+        } finally {
+            if (status) status.style.display = 'none';
         }
     },
 
