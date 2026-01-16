@@ -58,22 +58,14 @@
                 <a href="#map" class="nav-item" data-section="map">
                     <span class="nav-icon">📍</span><span class="nav-text">Mapa</span>
                 </a>
+                <a href="#settings" class="nav-item" data-section="settings">
+                    <span class="nav-icon">⚙️</span><span class="nav-text">Configuración</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
-                <div class="backup-buttons">
-                    <button class="backup-btn" id="exportDataBtn" title="Exportar datos">
-                        <span>📥</span><span class="nav-text">Exportar</span>
-                    </button>
-                    <button class="backup-btn" id="importDataBtn" title="Importar datos">
-                        <span>📤</span><span class="nav-text">Importar</span>
-                    </button>
-                    <input type="file" id="importFileInput" accept=".json" hidden>
+                <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
+                    v21
                 </div>
-                <button class="backup-btn" onclick="Auth.logout()" title="Cerrar Sesión"
-                    style="margin-top: 5px; color: #ef4444;">
-                    <span>🚪</span><span class="nav-text">Salir</span>
-                </button>
-                <!-- Theme Toggle Removed -->
             </div>
         </aside>
         <main class="main-content">
@@ -90,6 +82,72 @@
             <section class="content-section" id="section-followups"></section>
             <section class="content-section" id="section-signs"></section>
             <section class="content-section" id="section-map"></section>
+            <!-- SETTINGS SECTION -->
+            <section id="section-settings" class="content-section">
+                <div class="section-header">
+                    <h1>Configuración</h1>
+                </div>
+
+                <div class="dashboard-grid">
+                    <!-- Profile -->
+                    <div class="card setting-card" onclick="Auth.showChangePasswordModal()">
+                        <div class="card-body" style="text-align:center; cursor:pointer;">
+                            <div style="font-size:3rem;margin-bottom:1rem;">🔐</div>
+                            <h3>Seguridad</h3>
+                            <p style="color:var(--text-secondary);font-size:0.85rem;">Cambiar contraseña</p>
+                        </div>
+                    </div>
+
+                    <!-- Team (Admin Only) -->
+                    <div class="card setting-card admin-only" onclick="Auth.showSubUsersPanel()">
+                        <div class="card-body" style="text-align:center; cursor:pointer; position:relative;">
+                            <div style="font-size:3rem;margin-bottom:1rem;">👥</div>
+                            <span id="settingsPendingBadge"
+                                style="display:none;position:absolute;top:1rem;right:1rem;background:var(--warning);font-size:0.8rem;padding:0.2rem 0.5rem;border-radius:10px;color:white;">0</span>
+                            <h3>Equipo</h3>
+                            <p style="color:var(--text-secondary);font-size:0.85rem;">Gestionar secretarios</p>
+                        </div>
+                    </div>
+
+                    <!-- Recovery (Admin Only) -->
+                    <div class="card setting-card admin-only" onclick="Auth.handleLegacyRecovery()">
+                        <div class="card-body" style="text-align:center; cursor:pointer;">
+                            <div style="font-size:3rem;margin-bottom:1rem;">🕵️</div>
+                            <h3>Recuperación</h3>
+                            <p style="color:var(--text-secondary);font-size:0.85rem;">Buscar datos antiguos</p>
+                        </div>
+                    </div>
+
+                    <!-- Data -->
+                    <div class="card setting-card" onclick="Storage.exportData()">
+                        <div class="card-body" style="text-align:center; cursor:pointer;">
+                            <div style="font-size:3rem;margin-bottom:1rem;">📥</div>
+                            <h3>Exportar</h3>
+                            <p style="color:var(--text-secondary);font-size:0.85rem;">Copia de seguridad</p>
+                        </div>
+                    </div>
+
+                    <div class="card setting-card" onclick="document.getElementById('importFileInput').click()">
+                        <div class="card-body" style="text-align:center; cursor:pointer;">
+                            <div style="font-size:3rem;margin-bottom:1rem;">📤</div>
+                            <h3>Importar</h3>
+                            <p style="color:var(--text-secondary);font-size:0.85rem;">Cargar datos</p>
+                        </div>
+                    </div>
+
+                    <!-- Logout -->
+                    <div class="card setting-card" onclick="Auth.logout()" style="border-color:var(--danger);">
+                        <div class="card-body" style="text-align:center; cursor:pointer;">
+                            <div style="font-size:3rem;margin-bottom:1rem;">🚪</div>
+                            <h3 style="color:var(--danger);">Salir</h3>
+                            <p style="color:var(--text-secondary);font-size:0.85rem;">Cerrar sesión</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden inputs needed for functionality -->
+                <input type="file" id="importFileInput" accept=".json" hidden onchange="Storage.importData(this)">
+            </section>
         </main>
     </div>
     <div class="modal" id="propertyModal">

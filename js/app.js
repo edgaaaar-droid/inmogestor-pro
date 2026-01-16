@@ -100,44 +100,40 @@ const App = {
             })();
         }
 
-        // Update sidebar footer with user actions
-        const sidebarFooter = document.querySelector('.sidebar-footer');
-        if (sidebarFooter && user) {
+        // Update body class for role-based UI visibility
+        if (user) {
             const isAdmin = Auth.isAdmin();
+            document.body.classList.toggle('is-admin', isAdmin);
 
-            // Add user actions section (async to check if sub-user)
+            // Check sub-user role
             (async () => {
                 const role = await Auth.getUserRole();
                 const isSecretary = role?.role === 'secretary';
-                const pendingCount = isSecretary ? 0 : await Auth.getPendingApprovalsCount();
+                const isSubUser = !!role;
 
-                const userActionsHtml = `
-                    <div class="user-actions-section" style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border-color);">
-                        ${isAdmin ? `
-                            <button class="backup-btn" onclick="Auth.showAdminPanel()" title="Panel Admin" style="width:100%; margin-bottom:0.5rem;">
-                                <span>👑</span><span class="nav-text">Panel Admin</span>
-                            </button>
-                        ` : ''}
-                        ${!isSecretary ? `
-                            <button class="backup-btn" onclick="Auth.showSubUsersPanel()" title="Mis Secretarios" style="width:100%; margin-bottom:0.5rem;">
-                                <span>👥</span><span class="nav-text">Mis Secretarios ${pendingCount > 0 ? `<span style="background:#f59e0b;color:white;padding:0.1rem 0.4rem;border-radius:10px;font-size:0.7rem;margin-left:0.25rem;">${pendingCount}</span>` : ''}</span>
-                            </button>
-                        ` : ''}
-                        <button class="backup-btn" onclick="Auth.showChangePasswordModal()" title="Cambiar Contraseña">
-                            <span>🔐</span><span class="nav-text">Cambiar Clave</span>
-                        </button>
-                        <button class="backup-btn" onclick="Auth.logout()" title="Cerrar Sesión" style="background:var(--danger); border-color:var(--danger); color:white;">
-                            <span>🚪</span><span class="nav-text">Salir</span>
-                        </button>
-                    </div>
-                `;
+                document.body.classList.toggle('is-secretary', isSecretary);
+                document.body.classList.toggle('is-subuser', isSubUser);
 
-                // Remove existing and add new
-                const existingActions = sidebarFooter.querySelector('.user-actions-section');
-                if (existingActions) {
-                    existingActions.remove();
+                // Update pending count in settings if exists
+                if (!isSecretary) {
+                    const pendingCount = await Auth.getPendingApprovalsCount();
+                    const pendingBadge = document.getElementById('settingsPendingBadge');
+                    if (pendingBadge) {
+                        pendingBadge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
+                        pendingBadge.textContent = pendingCount;
+                    }
                 }
-                sidebarFooter.insertAdjacentHTML('beforeend', userActionsHtml);
+
+                // Update sidebar header badge
+                const sidebarHeader = document.querySelector('.sidebar-header');
+                if (sidebarHeader && isSecretary) {
+                    const existingBadge = sidebarHeader.querySelector('.secretary-badge');
+                    if (!existingBadge) {
+                        sidebarHeader.querySelector('.logo > div').insertAdjacentHTML('beforeend',
+                            '<span class="secretary-badge" style="font-size:0.65rem;color:#3b82f6;font-weight:600;">👥 SECRETARIO</span>'
+                        );
+                    }
+                }
             })();
         }
     },
