@@ -47,6 +47,24 @@ const App = {
         // Check for pending invitations (shows banner if any)
         Auth.showInvitationBanner();
 
+        // Proactive Legacy Check for Admin (Data Recovery)
+        if (Auth.isAdmin() && Storage.getProperties().length === 0) {
+            (async () => {
+                const legacy = await Auth.checkLegacyData();
+                if (legacy && legacy.count > 0) {
+                    const banner = document.createElement('div');
+                    banner.id = 'legacyRecoveryBanner';
+                    banner.style.cssText = 'background:#fee2e2; color:#991b1b; padding:1rem; text-align:center; border-bottom:1px solid #ef4444; font-size:0.9rem;';
+                    banner.innerHTML = `
+                        <strong>⚠️ ATENCIÓN:</strong> Tienes ${legacy.count} datos antiguos sin sincronizar (versión anterior).
+                        <button onclick="Auth.handleLegacyRecovery()" class="btn btn-sm btn-danger" style="margin-left:1rem;">⟳ Importar y Recuperar</button>
+                    `;
+                    const container = document.querySelector('.app-container');
+                    if (container) container.prepend(banner);
+                }
+            })();
+        }
+
         // Update user display in sidebar
         this.updateUserDisplay(user);
 
