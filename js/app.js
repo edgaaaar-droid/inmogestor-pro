@@ -28,7 +28,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 30;
+const APP_VERSION = 31;
 
 // Auto-check for updates on page load
 (async function checkForUpdates() {
