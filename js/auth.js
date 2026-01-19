@@ -390,6 +390,74 @@ const Auth = {
         }
     },
 
+    // Delete all data from a specific user (admin only)
+    async deleteUserData(userId) {
+        if (!this.isAdmin()) {
+            App.showToast('Solo el administrador puede borrar datos', 'error');
+            return false;
+        }
+        try {
+            await db.collection('users').doc(userId).collection('data').doc('main').delete();
+            console.log(`Deleted data for user: ${userId}`);
+            return true;
+        } catch (error) {
+            console.error('Error deleting user data:', error);
+            return false;
+        }
+    },
+
+    // Delete ALL data from ALL users (admin only) - CAUTION: IRREVERSIBLE
+    async deleteAllUsersData() {
+        if (!this.isAdmin()) {
+            App.showToast('Solo el administrador puede borrar datos', 'error');
+            return false;
+        }
+
+        const confirmMsg = '⚠️ ATENCIÓN: Esto borrará TODOS los datos de TODOS los usuarios.\n\n' +
+            '• Propiedades\n• Clientes\n• Carteles\n• Seguimientos\n\n' +
+            'Esta acción es IRREVERSIBLE.\n\n¿Estás seguro?';
+
+        if (!confirm(confirmMsg)) {
+            App.showToast('Operación cancelada', 'info');
+            return false;
+        }
+
+        // Second confirmation
+        if (!confirm('🔴 ÚLTIMA CONFIRMACIÓN: ¿Borrar TODO permanentemente?')) {
+            App.showToast('Operación cancelada', 'info');
+            return false;
+        }
+
+        App.showToast('🗑️ Borrando todos los datos...', 'warning');
+
+        try {
+            const usersSnapshot = await db.collection('users').get();
+            let deletedCount = 0;
+
+            for (const userDoc of usersSnapshot.docs) {
+                const userId = userDoc.id;
+                const dataRef = db.collection('users').doc(userId).collection('data').doc('main');
+                const dataDoc = await dataRef.get();
+
+                if (dataDoc.exists) {
+                    await dataRef.delete();
+                    deletedCount++;
+                    console.log(`✅ Deleted data for: ${userDoc.data().email || userId}`);
+                }
+            }
+
+            App.showToast(`✅ Datos borrados de ${deletedCount} usuarios`, 'success');
+
+            // Refresh admin panel
+            this.showAdminPanel();
+            return true;
+        } catch (error) {
+            console.error('Error deleting all data:', error);
+            App.showToast('Error al borrar datos: ' + error.message, 'error');
+            return false;
+        }
+    },
+
     // Show admin panel (if user is admin)
     async showAdminPanel() {
         if (!this.isAdmin()) {
@@ -433,6 +501,19 @@ const Auth = {
                     <div class="admin-stat-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 1rem; border-radius: 12px; text-align: center;">
                         <div style="font-size: 2rem; font-weight: bold;">${globalStats.totalSigns}</div>
                         <div style="font-size: 0.85rem; opacity: 0.9;">📋 Carteles</div>
+                    </div>
+                </div>
+
+                <!-- Admin Actions -->
+                <div style="background: linear-gradient(135deg, #ef4444, #b91c1c); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <strong style="font-size: 1rem;">🗑️ Zona de Peligro</strong>
+                            <div style="font-size: 0.8rem; opacity: 0.9;">Borrar permanentemente todos los datos</div>
+                        </div>
+                        <button class="btn" style="background: white; color: #ef4444; font-weight: bold;" onclick="Auth.deleteAllUsersData()">
+                            ⚠️ Borrar TODOS los Datos
+                        </button>
                     </div>
                 </div>
 
