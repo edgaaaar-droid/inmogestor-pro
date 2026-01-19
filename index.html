@@ -24,41 +24,62 @@
     <!-- ExcelJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 
-    <!-- INLINE VERSION CHECK - Runs before any cached JS -->
+    <!-- MANDATORY UPDATE CHECK - Blocks app if update available -->
     <script>
         (function () {
-            var LOCAL_VERSION = 31; // Increment this with each deploy
+            var LOCAL_VERSION = 32; // Increment this with each deploy
 
-            fetch('./sw.js?nocache=' + Date.now())
+            fetch('./sw.js?t=' + Date.now())
                 .then(function (r) { return r.text(); })
                 .then(function (text) {
                     var match = text.match(/CACHE_NAME\s*=\s*['"]inmogestor-pro-v(\d+)['"]/);
                     if (match) {
                         var serverVer = parseInt(match[1]);
-                        console.log('📱 Version check: local=v' + LOCAL_VERSION + ', server=v' + serverVer);
+                        console.log('📱 Version: local=v' + LOCAL_VERSION + ', server=v' + serverVer);
+
                         if (serverVer > LOCAL_VERSION) {
-                            // Show update banner
+                            // BLOCK THE ENTIRE APP
                             document.addEventListener('DOMContentLoaded', function () {
-                                var banner = document.createElement('div');
-                                banner.id = 'updateBanner';
-                                banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#22c55e;color:white;padding:12px;text-align:center;z-index:999999;font-family:sans-serif;';
-                                banner.innerHTML = '🔄 <b>Nueva versión v' + serverVer + ' disponible!</b> ' +
-                                    '<button onclick="doForceUpdate()" style="background:#fff;color:#22c55e;border:none;padding:8px 16px;border-radius:5px;font-weight:bold;cursor:pointer;margin-left:10px;">ACTUALIZAR AHORA</button>';
-                                document.body.insertBefore(banner, document.body.firstChild);
+                                // Create fullscreen blocking overlay
+                                var overlay = document.createElement('div');
+                                overlay.id = 'updateBlocker';
+                                overlay.style.cssText = 'position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f172a);z-index:9999999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Inter,sans-serif;color:white;text-align:center;padding:20px;';
+                                overlay.innerHTML =
+                                    '<div style="font-size:60px;margin-bottom:20px;">🔄</div>' +
+                                    '<h1 style="margin:0 0 10px 0;font-size:24px;">Actualización Disponible</h1>' +
+                                    '<p style="margin:0 0 5px 0;opacity:0.8;">Tu versión: <b>v' + LOCAL_VERSION + '</b></p>' +
+                                    '<p style="margin:0 0 30px 0;opacity:0.8;">Nueva versión: <b>v' + serverVer + '</b></p>' +
+                                    '<button onclick="doForceUpdate()" style="background:#22c55e;color:white;border:none;padding:16px 40px;border-radius:12px;font-size:18px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(34,197,94,0.4);">✓ ACTUALIZAR AHORA</button>' +
+                                    '<p style="margin-top:20px;font-size:12px;opacity:0.6;">Debes actualizar para continuar</p>';
+                                document.body.appendChild(overlay);
+
+                                // Hide the loading screen
+                                var loader = document.getElementById('appLoader');
+                                if (loader) loader.style.display = 'none';
                             });
                         }
                     }
                 })
-                .catch(function (e) { console.log('Version check failed:', e); });
+                .catch(function (e) { console.log('Version check skipped:', e); });
 
             window.doForceUpdate = function () {
+                // Show updating message
+                var blocker = document.getElementById('updateBlocker');
+                if (blocker) {
+                    blocker.innerHTML =
+                        '<div style="font-size:60px;margin-bottom:20px;">⏳</div>' +
+                        '<h1 style="margin:0 0 20px 0;font-size:24px;">Actualizando...</h1>' +
+                        '<p style="opacity:0.8;">Por favor espera</p>';
+                }
+
+                // Clear everything and reload
                 navigator.serviceWorker.getRegistrations().then(function (regs) {
                     regs.forEach(function (r) { r.unregister(); });
                 });
                 caches.keys().then(function (names) {
                     names.forEach(function (n) { caches.delete(n); });
                 });
-                setTimeout(function () { location.reload(true); }, 500);
+                setTimeout(function () { location.reload(true); }, 800);
             };
         })();
     </script>
@@ -123,7 +144,7 @@
             </nav>
             <div class="sidebar-footer">
                 <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
-                    <span id="appVersion">v31</span>
+                    <span id="appVersion">v32</span>
                     <button onclick="forceAppUpdate()"
                         style="background:none; border:1px solid var(--text-muted); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:5px; cursor:pointer;">🔄
                         Actualizar</button>
