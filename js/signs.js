@@ -49,9 +49,14 @@ const Signs = {
         this.container.innerHTML = `
             <div class="section-header">
                 <h1>📋 Captación de Carteles</h1>
-                <button class="btn btn-primary" onclick="Signs.openModal()">
-                    <span>➕</span> Nuevo Cartel
-                </button>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button class="btn btn-quick-sign" onclick="Signs.openQuickMode()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; font-weight: 700; animation: pulse-glow 2s infinite;">
+                        <span>⚡</span> Cartel Rápido
+                    </button>
+                    <button class="btn btn-primary" onclick="Signs.openModal()">
+                        <span>➕</span> Nuevo Cartel
+                    </button>
+                </div>
             </div>
 
             <div class="stats-grid" style="margin-bottom: 1.5rem;">
@@ -940,5 +945,374 @@ const Signs = {
                 fullMap.fitBounds(group.getBounds().pad(0.1));
             }
         }, 100);
+    },
+
+    // ===== QUICK SIGN MODE =====
+    quickModeData: {
+        type: 'venta',
+        phone: '',
+        address: '',
+        lat: null,
+        lng: null,
+        photos: []
+    },
+    recognition: null,
+    isListening: false,
+
+    openQuickMode() {
+        // Reset quick mode data
+        this.quickModeData = {
+            type: 'venta',
+            phone: '',
+            address: '',
+            lat: null,
+            lng: null,
+            photos: []
+        };
+
+        // Create fullscreen overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'quickSignOverlay';
+        overlay.className = 'quick-sign-overlay';
+        overlay.innerHTML = `
+            <div class="quick-sign-container">
+                <div class="quick-sign-header">
+                    <button class="quick-close-btn" onclick="Signs.closeQuickMode()">✕</button>
+                    <h2>⚡ Cartel Rápido</h2>
+                    <div id="quickGpsStatus" class="quick-gps-status">📍 Buscando GPS...</div>
+                </div>
+
+                <div class="quick-sign-body">
+                    <!-- Type Toggle -->
+                    <div class="quick-type-toggle">
+                        <button id="quickTypeVenta" class="quick-type-btn active" onclick="Signs.setQuickType('venta')">
+                            🔴 VENTA
+                        </button>
+                        <button id="quickTypeAlquiler" class="quick-type-btn" onclick="Signs.setQuickType('alquiler')">
+                            🔵 ALQUILER
+                        </button>
+                    </div>
+
+                    <!-- Photo Capture -->
+                    <div class="quick-photo-section">
+                        <input type="file" id="quickCameraInput" accept="image/*" capture="environment" hidden>
+                        <div id="quickPhotoPreview" class="quick-photo-preview" onclick="document.getElementById('quickCameraInput').click()">
+                            <span class="quick-photo-icon">📷</span>
+                            <span>Toca para tomar foto</span>
+                        </div>
+                    </div>
+
+                    <!-- Phone Input with Voice -->
+                    <div class="quick-input-group">
+                        <label>📞 Teléfono</label>
+                        <div class="quick-input-row">
+                            <input type="tel" id="quickPhone" class="quick-input" placeholder="Ej: 0981 123 456">
+                            <button class="quick-voice-btn" onclick="Signs.startVoiceDictation('phone')" title="Dictar teléfono">
+                                <span id="voiceBtnPhone">🎤</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Address Input with Voice -->
+                    <div class="quick-input-group">
+                        <label>📍 Dirección</label>
+                        <div class="quick-input-row">
+                            <input type="text" id="quickAddress" class="quick-input" placeholder="Detectada automáticamente o dicta...">
+                            <button class="quick-voice-btn" onclick="Signs.startVoiceDictation('address')" title="Dictar dirección">
+                                <span id="voiceBtnAddress">🎤</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Voice Status -->
+                    <div id="voiceStatus" class="quick-voice-status" style="display: none;">
+                        <span class="voice-pulse"></span> Escuchando...
+                    </div>
+
+                    <!-- GPS Coords (hidden but needed) -->
+                    <input type="hidden" id="quickLat">
+                    <input type="hidden" id="quickLng">
+                </div>
+
+                <div class="quick-sign-footer">
+                    <button class="quick-save-btn" onclick="Signs.saveQuickSign()">
+                        ✅ GUARDAR CARTEL
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        // Bind camera event
+        document.getElementById('quickCameraInput').addEventListener('change', (e) => this.handleQuickPhoto(e));
+
+        // Auto-detect GPS immediately
+        this.autoDetectQuickGPS();
+
+        // Initialize speech recognition
+        this.initSpeechRecognition();
+    },
+
+    closeQuickMode() {
+        const overlay = document.getElementById('quickSignOverlay');
+        if (overlay) {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }
+        if (this.recognition) {
+            this.recognition.abort();
+            this.isListening = false;
+        }
+    },
+
+    setQuickType(type) {
+        this.quickModeData.type = type;
+        document.getElementById('quickTypeVenta').classList.toggle('active', type === 'venta');
+        document.getElementById('quickTypeAlquiler').classList.toggle('active', type === 'alquiler');
+    },
+
+    async handleQuickPhoto(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const preview = document.getElementById('quickPhotoPreview');
+        preview.innerHTML = '<span class="quick-photo-loading">⏳ Procesando...</span>';
+
+        try {
+            const base64 = await Storage.processImage(file);
+            this.quickModeData.photos = [base64];
+
+            preview.style.backgroundImage = `url('${base64}')`;
+            preview.innerHTML = '<span class="quick-photo-retake">📷 Cambiar</span>';
+            preview.classList.add('has-photo');
+
+            // OCR scan for phone
+            this.scanQuickPhoneOCR(file);
+        } catch (err) {
+            console.error('Photo error:', err);
+            preview.innerHTML = '<span class="quick-photo-icon">📷</span><span>Error, toca para reintentar</span>';
+        }
+    },
+
+    async scanQuickPhoneOCR(file) {
+        if (typeof Tesseract === 'undefined') return;
+
+        const phoneInput = document.getElementById('quickPhone');
+        if (phoneInput.value.trim()) return; // Already has phone
+
+        try {
+            const { data: { text } } = await Tesseract.recognize(file, 'eng');
+            const phoneRegex = /(?:09[6-9]\d|021|\+595)[\s-]*\d{3}[\s-]*\d{3,4}/g;
+            const matches = text.match(phoneRegex);
+
+            if (matches && matches.length > 0) {
+                phoneInput.value = matches[0];
+                this.quickModeData.phone = matches[0];
+                App.showToast('📞 Teléfono detectado por OCR', 'success');
+            }
+        } catch (err) {
+            console.error('OCR error:', err);
+        }
+    },
+
+    autoDetectQuickGPS() {
+        const statusEl = document.getElementById('quickGpsStatus');
+
+        if (!navigator.geolocation) {
+            statusEl.innerHTML = '❌ GPS no disponible';
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+
+                this.quickModeData.lat = lat;
+                this.quickModeData.lng = lng;
+                document.getElementById('quickLat').value = lat;
+                document.getElementById('quickLng').value = lng;
+
+                statusEl.innerHTML = '✅ GPS detectado';
+                statusEl.style.color = '#10b981';
+
+                // Reverse geocode for address
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                    const data = await response.json();
+
+                    if (data && data.address) {
+                        const parts = [];
+                        if (data.address.road) parts.push(data.address.road);
+                        if (data.address.house_number) parts.push(data.address.house_number);
+                        if (data.address.neighbourhood) parts.push(data.address.neighbourhood);
+                        if (data.address.city || data.address.town) parts.push(data.address.city || data.address.town);
+
+                        const addressInput = document.getElementById('quickAddress');
+                        if (!addressInput.value.trim() && parts.length > 0) {
+                            addressInput.value = parts.join(', ');
+                            this.quickModeData.address = addressInput.value;
+                        }
+                    }
+                } catch (err) {
+                    console.error('Geocode error:', err);
+                }
+            },
+            (error) => {
+                statusEl.innerHTML = '⚠️ No se pudo obtener GPS';
+                statusEl.style.color = '#f59e0b';
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+    },
+
+    initSpeechRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            console.log('Speech Recognition not supported');
+            // Hide voice buttons if not supported
+            document.querySelectorAll('.quick-voice-btn').forEach(btn => btn.style.display = 'none');
+            return;
+        }
+
+        this.recognition = new SpeechRecognition();
+        this.recognition.lang = 'es-PY'; // Spanish Paraguay
+        this.recognition.continuous = false;
+        this.recognition.interimResults = false;
+
+        this.recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            this.handleVoiceResult(transcript);
+        };
+
+        this.recognition.onerror = (event) => {
+            console.error('Speech error:', event.error);
+            this.stopVoiceDictation();
+            if (event.error !== 'aborted') {
+                App.showToast('Error de voz: ' + event.error, 'error');
+            }
+        };
+
+        this.recognition.onend = () => {
+            this.stopVoiceDictation();
+        };
+    },
+
+    currentVoiceField: null,
+
+    startVoiceDictation(field) {
+        if (!this.recognition) {
+            App.showToast('Dictado por voz no soportado', 'error');
+            return;
+        }
+
+        if (this.isListening) {
+            this.recognition.abort();
+            this.stopVoiceDictation();
+            return;
+        }
+
+        this.currentVoiceField = field;
+        this.isListening = true;
+
+        // Update UI
+        const voiceStatus = document.getElementById('voiceStatus');
+        voiceStatus.style.display = 'flex';
+
+        const btnIcon = document.getElementById(field === 'phone' ? 'voiceBtnPhone' : 'voiceBtnAddress');
+        btnIcon.textContent = '🔴';
+        btnIcon.parentElement.classList.add('listening');
+
+        try {
+            this.recognition.start();
+        } catch (e) {
+            console.error('Recognition start error:', e);
+            this.stopVoiceDictation();
+        }
+    },
+
+    stopVoiceDictation() {
+        this.isListening = false;
+
+        const voiceStatus = document.getElementById('voiceStatus');
+        if (voiceStatus) voiceStatus.style.display = 'none';
+
+        // Reset all buttons
+        document.querySelectorAll('.quick-voice-btn').forEach(btn => {
+            btn.classList.remove('listening');
+            const icon = btn.querySelector('span');
+            if (icon) icon.textContent = '🎤';
+        });
+    },
+
+    handleVoiceResult(transcript) {
+        const field = this.currentVoiceField;
+        let processedText = transcript.trim();
+
+        if (field === 'phone') {
+            // Extract numbers from voice for phone
+            // Handle spoken numbers like "cero nueve ocho uno" -> "0981"
+            const numberWords = {
+                'cero': '0', 'uno': '1', 'dos': '2', 'tres': '3', 'cuatro': '4',
+                'cinco': '5', 'seis': '6', 'siete': '7', 'ocho': '8', 'nueve': '9'
+            };
+
+            let phoneNumber = processedText.toLowerCase();
+            Object.entries(numberWords).forEach(([word, digit]) => {
+                phoneNumber = phoneNumber.replace(new RegExp(word, 'g'), digit);
+            });
+
+            // Remove non-digits except spaces
+            phoneNumber = phoneNumber.replace(/[^\d\s]/g, '').replace(/\s+/g, ' ').trim();
+
+            document.getElementById('quickPhone').value = phoneNumber;
+            this.quickModeData.phone = phoneNumber;
+            App.showToast(`📞 Teléfono: ${phoneNumber}`, 'success');
+        } else {
+            // Address - use as-is
+            document.getElementById('quickAddress').value = processedText;
+            this.quickModeData.address = processedText;
+            App.showToast(`📍 Dirección: ${processedText}`, 'success');
+        }
+
+        this.stopVoiceDictation();
+    },
+
+    saveQuickSign() {
+        // Get latest values from inputs
+        const phone = document.getElementById('quickPhone').value.trim();
+        const address = document.getElementById('quickAddress').value.trim();
+
+        if (!phone) {
+            App.showToast('❌ El teléfono es obligatorio', 'error');
+            document.getElementById('quickPhone').focus();
+            return;
+        }
+
+        const sign = {
+            type: this.quickModeData.type,
+            phone: phone,
+            address: address,
+            lat: parseFloat(document.getElementById('quickLat').value) || null,
+            lng: parseFloat(document.getElementById('quickLng').value) || null,
+            photos: this.quickModeData.photos,
+            contacted: false,
+            createdAt: new Date().toISOString(),
+            quickCapture: true
+        };
+
+        // Secretary restriction
+        if (Storage.isSecretary()) {
+            Storage.savePending('sign', sign);
+        } else {
+            Storage.saveSign(sign);
+        }
+
+        this.closeQuickMode();
+        this.render();
+        App.showToast('⚡ Cartel guardado rápidamente!', 'success');
     }
 };

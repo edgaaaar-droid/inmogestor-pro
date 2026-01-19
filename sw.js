@@ -1,16 +1,16 @@
 // Service Worker for InmoGestor Pro
-const CACHE_NAME = 'inmogestor-pro-v26';
+const CACHE_NAME = 'inmogestor-pro-v27';
 const urlsToCache = [
     './',
     './index.html',
-    './css/styles.css',
+    './css/styles.css?v=6',
     './js/app.js?v=5',
     './js/storage.js?v=5',
     './js/auth.js?v=5',
     './js/properties.js?v=5',
     './js/clients.js?v=5',
     './js/followups.js?v=5',
-    './js/signs.js?v=5',
+    './js/signs.js?v=6',
     './js/pdf-generator.js?v=5',
     './img/profile.jpg'
 ];
