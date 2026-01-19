@@ -27,6 +27,37 @@ async function forceAppUpdate() {
     }
 }
 
+// Current app version - increment this with each deploy
+const APP_VERSION = 30;
+
+// Auto-check for updates on page load
+(async function checkForUpdates() {
+    try {
+        // Fetch sw.js with cache bypass to get server version
+        const response = await fetch('./sw.js?t=' + Date.now());
+        const text = await response.text();
+
+        // Extract version number from CACHE_NAME
+        const match = text.match(/CACHE_NAME\s*=\s*['"]inmogestor-pro-v(\d+)['"]/);
+        if (match) {
+            const serverVersion = parseInt(match[1]);
+            console.log(`📱 Version: local=v${APP_VERSION}, server=v${serverVersion}`);
+
+            if (serverVersion > APP_VERSION) {
+                console.log('🔄 Nueva versión disponible! Actualizando...');
+                // Auto-update silently
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) await reg.unregister();
+                const cacheKeys = await caches.keys();
+                for (const key of cacheKeys) await caches.delete(key);
+                window.location.reload(true);
+            }
+        }
+    } catch (e) {
+        console.log('Version check skipped:', e.message);
+    }
+})();
+
 const App = {
     currentSection: 'dashboard',
 
