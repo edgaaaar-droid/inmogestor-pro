@@ -431,6 +431,7 @@ const Auth = {
         App.showToast('🗑️ Borrando todos los datos...', 'warning');
 
         try {
+            // 1. Delete from Firestore for ALL users
             const usersSnapshot = await db.collection('users').get();
             let deletedCount = 0;
 
@@ -442,14 +443,33 @@ const Auth = {
                 if (dataDoc.exists) {
                     await dataRef.delete();
                     deletedCount++;
-                    console.log(`✅ Deleted data for: ${userDoc.data().email || userId}`);
+                    console.log(`✅ Firestore: Deleted data for: ${userDoc.data().email || userId}`);
                 }
             }
 
-            App.showToast(`✅ Datos borrados de ${deletedCount} usuarios`, 'success');
+            // 2. Clear ALL local storage data keys
+            const keysToDelete = [
+                'inmogestor_properties',
+                'inmogestor_clients',
+                'inmogestor_followups',
+                'inmogestor_activities',
+                'inmogestor_signs',
+                'inmogestor_colleagues',
+                'inmogestor_sales'
+            ];
 
-            // Refresh admin panel
-            this.showAdminPanel();
+            keysToDelete.forEach(key => {
+                localStorage.removeItem(key);
+                console.log(`✅ LocalStorage: Cleared ${key}`);
+            });
+
+            App.showToast(`✅ Datos borrados: ${deletedCount} usuarios en nube + datos locales`, 'success');
+
+            // 3. Force page reload after a moment to sync empty state
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+
             return true;
         } catch (error) {
             console.error('Error deleting all data:', error);
