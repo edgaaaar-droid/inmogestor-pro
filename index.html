@@ -77,6 +77,10 @@
                 <a href="#settings" class="nav-item" data-section="settings">
                     <span class="nav-icon">⚙️</span><span class="nav-text">Configuración</span>
                 </a>
+                <a href="#" class="nav-item nav-logout" onclick="Auth.logout(); return false;"
+                    style="color: var(--danger); margin-top: auto;">
+                    <span class="nav-icon">🚪</span><span class="nav-text">Cerrar Sesión</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
@@ -148,15 +152,6 @@
                             <div style="font-size:3rem;margin-bottom:1rem;">📤</div>
                             <h3>Importar</h3>
                             <p style="color:var(--text-secondary);font-size:0.85rem;">Cargar datos</p>
-                        </div>
-                    </div>
-
-                    <!-- Logout -->
-                    <div class="card setting-card" onclick="Auth.logout()" style="border-color:var(--danger);">
-                        <div class="card-body" style="text-align:center; cursor:pointer;">
-                            <div style="font-size:3rem;margin-bottom:1rem;">🚪</div>
-                            <h3 style="color:var(--danger);">Salir</h3>
-                            <p style="color:var(--text-secondary);font-size:0.85rem;">Cerrar sesión</p>
                         </div>
                     </div>
                 </div>
