@@ -1,4 +1,32 @@
 // Main App Controller
+
+// Global function to force app update (clears cache and reloads)
+async function forceAppUpdate() {
+    try {
+        // Show updating message
+        alert('🔄 Actualizando app... Esto tomará unos segundos.');
+
+        // Unregister all service workers
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+            await registration.unregister();
+        }
+
+        // Clear all caches
+        const cacheNames = await caches.keys();
+        for (const cacheName of cacheNames) {
+            await caches.delete(cacheName);
+        }
+
+        // Force hard reload
+        window.location.reload(true);
+    } catch (error) {
+        console.error('Error updating app:', error);
+        // Fallback: just reload
+        window.location.reload(true);
+    }
+}
+
 const App = {
     currentSection: 'dashboard',
 
