@@ -431,20 +431,32 @@ const Auth = {
         App.showToast('🗑️ Borrando todos los datos...', 'warning');
 
         try {
-            // 1. Delete from Firestore for ALL users
+            // 1. OVERWRITE Firestore documents with EMPTY data for ALL users
+            // Using set() instead of delete() is more reliable
             const usersSnapshot = await db.collection('users').get();
-            let deletedCount = 0;
+            let clearedCount = 0;
+
+            const emptyData = {
+                properties: [],
+                clients: [],
+                followups: [],
+                signs: [],
+                colleagues: [],
+                sales: [],
+                settings: {},
+                lastSync: new Date().toISOString(),
+                clearedAt: new Date().toISOString(),
+                clearedBy: this.currentUser.email
+            };
 
             for (const userDoc of usersSnapshot.docs) {
                 const userId = userDoc.id;
                 const dataRef = db.collection('users').doc(userId).collection('data').doc('main');
-                const dataDoc = await dataRef.get();
 
-                if (dataDoc.exists) {
-                    await dataRef.delete();
-                    deletedCount++;
-                    console.log(`✅ Firestore: Deleted data for: ${userDoc.data().email || userId}`);
-                }
+                // Overwrite with empty data - more reliable than delete()
+                await dataRef.set(emptyData);
+                clearedCount++;
+                console.log(`✅ Firestore: Cleared data for: ${userDoc.data().email || userId}`);
             }
 
             // 2. Clear ALL local storage data keys
@@ -455,7 +467,9 @@ const Auth = {
                 'inmogestor_activities',
                 'inmogestor_signs',
                 'inmogestor_colleagues',
-                'inmogestor_sales'
+                'inmogestor_sales',
+                'inmogestor_settings',
+                'inmogestor_lastSync'
             ];
 
             keysToDelete.forEach(key => {
@@ -463,9 +477,9 @@ const Auth = {
                 console.log(`✅ LocalStorage: Cleared ${key}`);
             });
 
-            App.showToast(`✅ Datos borrados: ${deletedCount} usuarios en nube + datos locales`, 'success');
+            App.showToast(`✅ Datos borrados: ${clearedCount} usuarios`, 'success');
 
-            // 3. Force page reload after a moment to sync empty state
+            // 3. Force page reload after showing message
             setTimeout(() => {
                 location.reload();
             }, 2000);
