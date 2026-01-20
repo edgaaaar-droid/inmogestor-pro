@@ -27,14 +27,13 @@
     <!-- MANDATORY UPDATE CHECK - Blocks app if update available -->
     <script>
         (function () {
-            var LOCAL_VERSION = 35; // Increment this with each deploy
+            var LOCAL_VERSION = 37; // Increment this with each deploy
 
-            fetch('./sw.js?t=' + Date.now())
-                .then(function (r) { return r.text(); })
-                .then(function (text) {
-                    var match = text.match(/CACHE_NAME\s*=\s*['"]inmogestor-pro-v(\d+)['"]/);
-                    if (match) {
-                        var serverVer = parseInt(match[1]);
+            fetch('./version.json?t=' + Date.now())
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var serverVer = data.version;
+                    if (serverVer) {
                         console.log('📱 Version: local=v' + LOCAL_VERSION + ', server=v' + serverVer);
 
                         if (serverVer > LOCAL_VERSION) {
@@ -359,15 +358,15 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
     </script>
-    <script src="js/storage.js?v=5"></script>
-    <script src="js/auth.js?v=5"></script>
-    <script src="js/properties.js?v=5"></script>
-    <script src="js/clients.js?v=5"></script>
-    <script src="js/followups.js?v=5"></script>
-    <script src="js/signs.js?v=5"></script>
+    <script src="js/storage.js?v=7"></script>
+    <script src="js/auth.js?v=7"></script>
+    <script src="js/properties.js?v=7"></script>
+    <script src="js/clients.js?v=7"></script>
+    <script src="js/followups.js?v=7"></script>
+    <script src="js/signs.js?v=7"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="js/pdf-generator.js?v=5"></script>
-    <script src="js/app.js?v=5"></script>
+    <script src="js/pdf-generator.js?v=7"></script>
+    <script src="js/app.js?v=7"></script>
     <!-- Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {

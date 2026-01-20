@@ -512,13 +512,25 @@ const Signs = {
 
     async handleImages(e) {
         const files = Array.from(e.target.files);
+        let addedCount = 0;
+
         for (const file of files) {
             if (file.type.startsWith('image/')) {
                 const base64 = await Storage.processImage(file);
-                this.currentPhotos.push(base64);
+                if (base64) {
+                    this.currentPhotos.push(base64);
+                    addedCount++;
+                }
             }
         }
-        this.renderPhotoPreview();
+
+        // Clear input to allow re-selecting the same file
+        e.target.value = '';
+
+        if (addedCount > 0) {
+            this.renderPhotoPreview();
+            App.showToast(`📸 ${addedCount} foto(s) agregada(s)`, 'success');
+        }
     },
 
     async handleImageDrop(e) {
@@ -956,6 +968,7 @@ const Signs = {
         lng: null,
         photos: []
     },
+    quickMapInstance: null,
     recognition: null,
     isListening: false,
 
@@ -969,6 +982,7 @@ const Signs = {
             lng: null,
             photos: []
         };
+        this.quickMapInstance = null;
 
         // Create fullscreen overlay
         const overlay = document.createElement('div');
@@ -995,10 +1009,12 @@ const Signs = {
 
                     <!-- Photo Capture -->
                     <div class="quick-photo-section">
-                        <input type="file" id="quickCameraInput" accept="image/*" capture="environment" hidden>
-                        <div id="quickPhotoPreview" class="quick-photo-preview" onclick="document.getElementById('quickCameraInput').click()">
-                            <span class="quick-photo-icon">📷</span>
-                            <span>Toca para tomar foto</span>
+                        <input type="file" id="quickCameraInput" multiple accept="image/*" hidden>
+                        <div id="quickPhotoPreview" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; min-height: 80px;">
+                            <div class="quick-add-photo-btn" onclick="document.getElementById('quickCameraInput').click()" style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); border: 2px dashed rgba(255,255,255,0.3); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; flex-shrink: 0;">
+                                📷
+                            </div>
+                            <!-- Photos will appear here -->
                         </div>
                     </div>
 
@@ -1023,6 +1039,10 @@ const Signs = {
                             </button>
                         </div>
                     </div>
+
+                    <!-- GPS Map Visual -->
+                    <div id="quickMap" style="height: 180px; width: 100%; border-radius: 12px; margin-top: 1rem; display: none; border: 2px solid var(--border-color);"></div>
+                    <div id="quickCoords" style="font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); text-align: center; margin-top: 0.5rem; display: none;"></div>
 
                     <!-- Voice Status -->
                     <div id="voiceStatus" class="quick-voice-status" style="display: none;">
@@ -1061,6 +1081,11 @@ const Signs = {
             overlay.remove();
             document.body.style.overflow = '';
         }
+        if (this.quickMapInstance) {
+            this.quickMapInstance.remove();
+            this.quickMapInstance = null;
+        }
+
         if (this.recognition) {
             this.recognition.abort();
             this.isListening = false;
@@ -1074,26 +1099,71 @@ const Signs = {
     },
 
     async handleQuickPhoto(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
 
-        const preview = document.getElementById('quickPhotoPreview');
-        preview.innerHTML = '<span class="quick-photo-loading">⏳ Procesando...</span>';
+        // Show loading state?
+        const btn = document.querySelector('.quick-add-photo-btn');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '⏳';
+
+        let addedCount = 0;
 
         try {
-            const base64 = await Storage.processImage(file);
-            this.quickModeData.photos = [base64];
+            for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                    const base64 = await Storage.processImage(file);
+                    if (base64) {
+                        this.quickModeData.photos.push(base64);
+                        addedCount++;
+                        // OCR only on first image?
+                        if (this.quickModeData.photos.length === 1) {
+                            this.scanQuickPhoneOCR(file);
+                        }
+                    }
+                }
+            }
 
-            preview.style.backgroundImage = `url('${base64}')`;
-            preview.innerHTML = '<span class="quick-photo-retake">📷 Cambiar</span>';
-            preview.classList.add('has-photo');
-
-            // OCR scan for phone
-            this.scanQuickPhoneOCR(file);
+            this.renderQuickPhotos();
+            if (addedCount > 0) {
+                App.showToast(`📸 ${addedCount} foto(s) agregada(s)`, 'success');
+            }
         } catch (err) {
             console.error('Photo error:', err);
-            preview.innerHTML = '<span class="quick-photo-icon">📷</span><span>Error, toca para reintentar</span>';
+            App.showToast('Error procesando fotos', 'error');
+        } finally {
+            btn.innerHTML = originalContent;
+            e.target.value = ''; // Reset input
         }
+    },
+
+    renderQuickPhotos() {
+        const container = document.getElementById('quickPhotoPreview');
+        if (!container) return;
+
+        // Keep the add button
+        const addBtn = container.querySelector('.quick-add-photo-btn');
+
+        // Clear everything after the button
+        while (addBtn.nextSibling) {
+            addBtn.nextSibling.remove();
+        }
+
+        // Append photos
+        this.quickModeData.photos.forEach((photo, idx) => {
+            const div = document.createElement('div');
+            div.style.cssText = 'position: relative; width: 80px; height: 80px; flex-shrink: 0;';
+            div.innerHTML = `
+                <img src="${photo}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);">
+                <button onclick="Signs.removeQuickPhoto(${idx})" style="position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: #ef4444; border-radius: 50%; border: none; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer;">×</button>
+            `;
+            container.appendChild(div);
+        });
+    },
+
+    removeQuickPhoto(index) {
+        this.quickModeData.photos.splice(index, 1);
+        this.renderQuickPhotos();
     },
 
     async scanQuickPhoneOCR(file) {
@@ -1136,6 +1206,38 @@ const Signs = {
                 document.getElementById('quickLng').value = lng;
 
                 statusEl.innerHTML = '✅ GPS detectado';
+
+                // Show Map & Coords
+                const mapEl = document.getElementById('quickMap');
+                const coordsEl = document.getElementById('quickCoords');
+
+                if (mapEl && typeof L !== 'undefined') {
+                    mapEl.style.display = 'block';
+                    if (coordsEl) {
+                        coordsEl.style.display = 'block';
+                        coordsEl.textContent = `📍 Lat: ${lat.toFixed(5)} | Lng: ${lng.toFixed(5)}`;
+                    }
+
+                    if (this.quickMapInstance) {
+                        this.quickMapInstance.remove();
+                    }
+
+                    setTimeout(() => {
+                        this.quickMapInstance = L.map('quickMap', {
+                            zoomControl: false,
+                            dragging: false,
+                            scrollWheelZoom: false,
+                            doubleClickZoom: false,
+                            boxZoom: false,
+                            attributionControl: false
+                        }).setView([lat, lng], 17);
+
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.quickMapInstance);
+                        L.marker([lat, lng]).addTo(this.quickMapInstance);
+
+                        this.quickMapInstance.invalidateSize();
+                    }, 100);
+                }
                 statusEl.style.color = '#10b981';
 
                 // Reverse geocode for address

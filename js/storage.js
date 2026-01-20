@@ -169,7 +169,7 @@ const Storage = {
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const maxSize = 800;
+                    const maxSize = 1200; // Increased quality slightly
                     let { width, height } = img;
 
                     if (width > height && width > maxSize) {
@@ -184,9 +184,17 @@ const Storage = {
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.onerror = () => {
+                    console.error('Error loading image object');
+                    resolve(null); // Resolve null so we don't hang
                 };
                 img.src = e.target.result;
+            };
+            reader.onerror = () => {
+                console.error('Error reading file');
+                resolve(null);
             };
             reader.readAsDataURL(file);
         });
