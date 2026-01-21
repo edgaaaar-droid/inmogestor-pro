@@ -28,7 +28,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 37;
+const APP_VERSION = 38;
 
 // Auto-check for updates on page load
 (async function checkForUpdates() {
@@ -476,9 +476,11 @@ const App = {
                     <div class="form-group"><label>Título *</label><input type="text" id="propertyTitle" required placeholder="Ej: Casa moderna"></div>
                     <div class="form-group"><label>Tipo *</label><select id="propertyType" required><option value="">Seleccionar...</option><option value="house">Casa</option><option value="apartment">Departamento</option><option value="land">Terreno</option><option value="commercial">Comercial</option><option value="office">Oficina</option></select></div>
                     <div class="form-group"><label>Estado *</label><select id="propertyStatus"><option value="available">Disponible</option><option value="reserved">Reservado</option><option value="sold">Vendido</option><option value="rented">Alquilado</option></select></div>
-                    <div class="form-group"><label>Operación *</label><select id="propertyOperation"><option value="sale">Venta</option><option value="rent">Alquiler</option><option value="both">Ambos</option></select></div>
-                    <div class="form-group"><label>Precio *</label><input type="number" id="propertyPrice" required placeholder="150000"></div>
-                    <div class="form-group"><label>Moneda</label><select id="propertyCurrency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="ARS">ARS</option></select></div>
+                    <div class="form-group"><label>Operación *</label><select id="propertyOperation" onchange="Properties.togglePriceFields()"><option value="sale">Venta</option><option value="rent">Alquiler</option><option value="both">Venta + Alquiler</option></select></div>
+                    <div class="form-group" id="singlePriceGroup"><label>Precio *</label><input type="number" id="propertyPrice" placeholder="150000"></div>
+                    <div class="form-group" id="salePriceGroup" style="display:none;"><label>💰 Precio Venta *</label><input type="number" id="propertySalePrice" placeholder="150000"></div>
+                    <div class="form-group" id="rentPriceGroup" style="display:none;"><label>🔑 Precio Alquiler *</label><input type="number" id="propertyRentPrice" placeholder="1500"></div>
+                    <div class="form-group"><label>Moneda</label><select id="propertyCurrency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="PYG">PYG (Gs)</option><option value="ARS">ARS</option></select></div>
                     <div class="form-group full-width"><label>Dirección *</label><input type="text" id="propertyAddress" required placeholder="Calle, número, ciudad"></div>
                     <div class="form-group"><label>Latitud (Mapa)</label><input type="text" id="propertyLat" placeholder="-25.2867 (Opcional)"></div>
                     <div class="form-group"><label>Longitud (Mapa)</label><input type="text" id="propertyLng" placeholder="-57.6470 (Opcional)"></div>

@@ -75,6 +75,26 @@ const Properties = {
         });
     },
 
+    // Toggle price fields based on operation type
+    togglePriceFields() {
+        const operation = document.getElementById('propertyOperation')?.value;
+        const singlePriceGroup = document.getElementById('singlePriceGroup');
+        const salePriceGroup = document.getElementById('salePriceGroup');
+        const rentPriceGroup = document.getElementById('rentPriceGroup');
+
+        if (!singlePriceGroup || !salePriceGroup || !rentPriceGroup) return;
+
+        if (operation === 'both') {
+            singlePriceGroup.style.display = 'none';
+            salePriceGroup.style.display = 'block';
+            rentPriceGroup.style.display = 'block';
+        } else {
+            singlePriceGroup.style.display = 'block';
+            salePriceGroup.style.display = 'none';
+            rentPriceGroup.style.display = 'none';
+        }
+    },
+
     render() {
         const container = document.getElementById('section-properties'); // Ensure we target the section container for header overwrite, OR just propertiesContainer innerHTML? 
         // Wait, current implementation uses this.container = document.getElementById('propertiesContainer');
@@ -582,7 +602,14 @@ const Properties = {
                 <div class="property-info">
                     <h3 class="property-title">${property.title}</h3>
                     <p class="property-address">📍 ${property.address}</p>
-                    <p class="property-price">${property.currency} ${this.formatPrice(property.price)}</p>
+                    ${property.operation === 'both' ? `
+                        <p class="property-price" style="display:flex;flex-direction:column;gap:2px;">
+                            <span style="color:var(--success);">💰 Venta: ${property.currency} ${this.formatPrice(property.salePrice || property.price)}</span>
+                            <span style="color:var(--info);">🔑 Alquiler: ${property.currency} ${this.formatPrice(property.rentPrice)}/mes</span>
+                        </p>
+                    ` : `
+                        <p class="property-price">${property.currency} ${this.formatPrice(property.price)}${property.operation === 'rent' ? '/mes' : ''}</p>
+                    `}
                     <div class="property-features">
                         ${property.bedrooms ? `<span>🛏️ ${property.bedrooms}</span>` : ''}
                         ${property.bathrooms ? `<span>🚿 ${property.bathrooms}</span>` : ''}
@@ -623,7 +650,19 @@ const Properties = {
             document.getElementById('propertyType').value = property.type || '';
             document.getElementById('propertyStatus').value = property.status || 'available';
             document.getElementById('propertyOperation').value = property.operation || 'sale';
-            document.getElementById('propertyPrice').value = property.price || '';
+
+            // Handle dual pricing
+            if (property.operation === 'both') {
+                document.getElementById('propertySalePrice').value = property.salePrice || property.price || '';
+                document.getElementById('propertyRentPrice').value = property.rentPrice || '';
+                document.getElementById('propertyPrice').value = '';
+            } else {
+                document.getElementById('propertyPrice').value = property.price || '';
+                if (document.getElementById('propertySalePrice')) document.getElementById('propertySalePrice').value = '';
+                if (document.getElementById('propertyRentPrice')) document.getElementById('propertyRentPrice').value = '';
+            }
+            this.togglePriceFields();
+
             document.getElementById('propertyCurrency').value = property.currency || 'USD';
             document.getElementById('propertyAddress').value = property.address || '';
             document.getElementById('propertyLat').value = property.lat || '';
@@ -682,6 +721,8 @@ const Properties = {
 
             form.reset();
             document.getElementById('propertyId').value = '';
+            // Reset dual price fields to default state
+            this.togglePriceFields();
         }
         this.updateOwnerSelect();
 
@@ -769,13 +810,30 @@ const Properties = {
     async handleSubmit(e) {
         e.preventDefault();
 
+        const operation = document.getElementById('propertyOperation').value;
+
+        // Handle dual pricing for both (sale + rent)
+        let price = 0;
+        let salePrice = null;
+        let rentPrice = null;
+
+        if (operation === 'both') {
+            salePrice = parseFloat(document.getElementById('propertySalePrice').value) || 0;
+            rentPrice = parseFloat(document.getElementById('propertyRentPrice').value) || 0;
+            price = salePrice; // Use sale price as main price for compatibility
+        } else {
+            price = parseFloat(document.getElementById('propertyPrice').value) || 0;
+        }
+
         const property = {
             id: document.getElementById('propertyId').value || null,
             title: document.getElementById('propertyTitle').value,
             type: document.getElementById('propertyType').value,
             status: document.getElementById('propertyStatus').value,
-            operation: document.getElementById('propertyOperation').value,
-            price: parseFloat(document.getElementById('propertyPrice').value),
+            operation: operation,
+            price: price,
+            salePrice: salePrice,
+            rentPrice: rentPrice,
             currency: document.getElementById('propertyCurrency').value,
             address: document.getElementById('propertyAddress').value,
             lat: parseFloat(document.getElementById('propertyLat').value) || null,
