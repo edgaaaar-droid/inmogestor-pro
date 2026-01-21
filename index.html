@@ -27,7 +27,7 @@
     <!-- MANDATORY UPDATE CHECK - Blocks app if update available -->
     <script>
         (function () {
-            var LOCAL_VERSION = 38; // Increment this with each deploy
+            var LOCAL_VERSION = 39; // Increment this with each deploy
 
             fetch('./version.json?t=' + Date.now())
                 .then(function (r) { return r.json(); })
@@ -93,6 +93,16 @@
         </div>
         <div style="color:var(--primary);font-weight:600;letter-spacing:1px;">CARGANDO SISTEMA...</div>
     </div>
+    <script>
+        // Safety timeout: hide loader after 8 seconds even if there's an error
+        setTimeout(function () {
+            var loader = document.getElementById('appLoader');
+            if (loader && loader.style.display !== 'none') {
+                loader.style.display = 'none';
+                console.warn('⚠️ Loader hidden by safety timeout');
+            }
+        }, 8000);
+    </script>
     <style>
         @keyframes spin {
             to {
@@ -143,7 +153,7 @@
             </nav>
             <div class="sidebar-footer">
                 <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
-                    <span id="appVersion">v38</span>
+                    <span id="appVersion">v39</span>
                     <button onclick="forceAppUpdate()"
                         style="background:none; border:1px solid var(--text-muted); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:5px; cursor:pointer;">🔄
                         Actualizar</button>
