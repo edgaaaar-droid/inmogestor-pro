@@ -27,7 +27,7 @@
     <!-- MANDATORY UPDATE CHECK - Blocks app if update available -->
     <script>
         (function () {
-            var LOCAL_VERSION = 39; // Increment this with each deploy
+            var LOCAL_VERSION = 46; // Increment this with each deploy
 
             fetch('./version.json?t=' + Date.now())
                 .then(function (r) { return r.json(); })
@@ -68,17 +68,30 @@
                     blocker.innerHTML =
                         '<div style="font-size:60px;margin-bottom:20px;">⏳</div>' +
                         '<h1 style="margin:0 0 20px 0;font-size:24px;">Actualizando...</h1>' +
-                        '<p style="opacity:0.8;">Por favor espera</p>';
+                        '<p style="opacity:0.8;">Por favor espera, limpiando caché...</p>';
                 }
 
-                // Clear everything and reload
-                navigator.serviceWorker.getRegistrations().then(function (regs) {
-                    regs.forEach(function (r) { r.unregister(); });
-                });
-                caches.keys().then(function (names) {
-                    names.forEach(function (n) { caches.delete(n); });
-                });
-                setTimeout(function () { location.reload(true); }, 800);
+                // Aggressive Cache Clearing
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function (regs) {
+                        for (let registration of regs) {
+                            registration.unregister();
+                        }
+                    });
+                }
+
+                if ('caches' in window) {
+                    caches.keys().then(function (names) {
+                        for (let name of names) {
+                            caches.delete(name);
+                        }
+                    });
+                }
+
+                // Force reload bypassing cache after short delay
+                setTimeout(function () {
+                    window.location.reload(true);
+                }, 1500);
             };
         })();
     </script>
