@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reparando InmoGestor...</title>
+    <style>
+        body {
+            background: #0f172a;
+            color: white;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #22c55e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="spinner"></div>
+    <h2>Actualizando Sistema...</h2>
+    <p style="opacity: 0.7">Limpiando archivos antiguos (v39)...</p>
+    <div id="status" style="margin-top:20px; font-size: 12px; font-family: monospace; color: #aaa;"></div>
+
+    <script>
+        const status = document.getElementById('status');
+        const log = (msg) => {
+            console.log(msg);
+            status.innerHTML += msg + '<br>';
+        };
+
+        async function nukeAndReload() {
+            log('Iniciando limpieza...');
+
+            // 1. Unregister Service Workers
+            if ('serviceWorker' in navigator) {
+                try {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    for (const reg of regs) {
+                        await reg.unregister();
+                        log('✅ Service Worker eliminado');
+                    }
+                } catch (e) {
+                    log('⚠️ Error eliminando SW: ' + e);
+                }
+            }
+
+            // 2. Clear Caches
+            if ('caches' in window) {
+                try {
+                    const keys = await caches.keys();
+                    for (const key of keys) {
+                        await caches.delete(key);
+                        log('✅ Caché eliminada: ' + key);
+                    }
+                } catch (e) {
+                    log('⚠️ Error eliminando cachés: ' + e);
+                }
+            }
+
+            // 3. Clear Storage
+            localStorage.clear();
+            sessionStorage.clear();
+            log('✅ Almacenamiento local limpio');
+
+            log('🔄 Redirigiendo a la nueva versión...');
+
+            // Wait a moment so user sees it
+            setTimeout(() => {
+                // Redirect with cache busting param
+                window.location.replace('index.html?v=47&t=' + Date.now());
+            }, 2000);
+        }
+
+        // Run immediately
+        nukeAndReload();
+    </script>
+</body>
+
+</html>
