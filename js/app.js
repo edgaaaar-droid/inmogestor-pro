@@ -28,7 +28,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 47;
+const APP_VERSION = 48;
 
 // Auto-check for updates on page load
 (async function checkForUpdates() {
@@ -1042,15 +1042,65 @@ const App = {
         if (!container) return;
 
         try {
+            const currentUid = Auth.currentUser?.uid;
+            if (!currentUid) return;
+
             // Get pending approvals from main user
             const mainUserId = await Auth.getMainUserId();
             const dataDoc = await db.collection('users').doc(mainUserId)
                 .collection('data').doc('main').get();
 
             const data = dataDoc.exists ? dataDoc.data() : {};
-            const pending = (data.pendingApprovals || []).filter(p =>
-                p.type === 'sign' && p.addedBy === Auth.currentUser?.uid
+            let pending = (data.pendingApprovals || []).filter(p =>
+                p.type === 'sign' && p.addedBy === currentUid
             );
+
+            // AUTO-RECOVERY: Check for "stranded" signs in the captador's own account
+            // (These exist if the user was mistakenly treated as "Owner" before)
+            if (currentUid !== mainUserId) {
+                try {
+                    const myDataDoc = await db.collection('users').doc(currentUid)
+                        .collection('data').doc('main').get();
+
+                    if (myDataDoc.exists) {
+                        const myData = myDataDoc.data();
+                        const strandedSigns = myData.signs || [];
+
+                        if (strandedSigns.length > 0) {
+                            console.log(`♻️ Recuperando ${strandedSigns.length} carteles huérfanos...`);
+
+                            const mainRef = db.collection('users').doc(mainUserId).collection('data').doc('main');
+                            const myRef = db.collection('users').doc(currentUid).collection('data').doc('main');
+
+                            // Prepare items for pending queue
+                            const newPendingItems = strandedSigns.map(sign => ({
+                                type: 'sign',
+                                data: sign,
+                                addedBy: currentUid,
+                                addedByName: Auth.currentUser?.displayName || Auth.currentUser?.email,
+                                addedAt: new Date().toISOString(),
+                                recovered: true
+                            }));
+
+                            // 1. Add to pending
+                            const currentPending = data.pendingApprovals || [];
+                            await mainRef.update({
+                                pendingApprovals: [...currentPending, ...newPendingItems]
+                            });
+
+                            // 2. Clear local signs to prevent duplicates
+                            await myRef.update({ signs: [] });
+
+                            // 3. Add to local list for immediate display
+                            pending = [...pending, ...newPendingItems];
+
+                            App.showToast(`♻️ Se recuperaron ${strandedSigns.length} carteles anteriores`, 'success');
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error checking for stranded signs:', err);
+                }
+            }
 
             if (pending.length === 0) {
                 container.innerHTML = `
@@ -1063,13 +1113,18 @@ const App = {
                 return;
             }
 
+            // Sort by date desc
+            pending.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+
             container.innerHTML = pending.map(item => `
                 <div class="captador-sign-item">
                     <div class="captador-sign-info">
                         <span class="captador-sign-type ${item.data.type}">${item.data.type === 'venta' ? '🔴 Venta' : '🔵 Alquiler'}</span>
                         <strong>📞 ${item.data.phone || 'Sin teléfono'}</strong>
                         <small>📍 ${item.data.address || 'Sin dirección'}</small>
-                        <small style="color: var(--warning);">⏳ Pendiente de aprobación</small>
+                        <small style="color: var(--warning);">
+                            ${item.recovered ? '♻️ Recuperado' : '⏳ Pendiente de aprobación'}
+                        </small>
                     </div>
                     ${item.data.photos?.[0] ? `<img src="${item.data.photos[0]}" class="captador-sign-thumb">` : ''}
                 </div>
