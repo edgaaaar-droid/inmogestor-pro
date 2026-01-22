@@ -1277,37 +1277,75 @@ const Signs = {
             console.log('Speech Recognition not supported');
             // Hide voice buttons if not supported
             document.querySelectorAll('.quick-voice-btn').forEach(btn => btn.style.display = 'none');
+            App.showToast('⚠️ Tu navegador no soporta dictado por voz', 'warning');
             return;
         }
 
         this.recognition = new SpeechRecognition();
-        this.recognition.lang = 'es-PY'; // Spanish Paraguay
+        this.recognition.lang = 'es-419'; // Spanish Latin America (more compatible than es-PY)
         this.recognition.continuous = false;
-        this.recognition.interimResults = false;
+        this.recognition.interimResults = true; // Show partial results for feedback
+        this.recognition.maxAlternatives = 1;
 
         this.recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            this.handleVoiceResult(transcript);
+            const result = event.results[event.results.length - 1];
+            const transcript = result[0].transcript;
+
+            if (result.isFinal) {
+                this.handleVoiceResult(transcript);
+            } else {
+                // Show interim result as placeholder
+                const field = this.currentVoiceField;
+                const inputEl = document.getElementById(field === 'phone' ? 'quickPhone' : 'quickAddress');
+                if (inputEl) {
+                    inputEl.placeholder = '🎤 ' + transcript + '...';
+                }
+            }
         };
 
         this.recognition.onerror = (event) => {
             console.error('Speech error:', event.error);
             this.stopVoiceDictation();
-            if (event.error !== 'aborted') {
-                App.showToast('Error de voz: ' + event.error, 'error');
+
+            // User-friendly error messages
+            const errorMessages = {
+                'no-speech': '🔇 No se detectó voz. Intenta hablar más fuerte.',
+                'audio-capture': '🎤 No se pudo acceder al micrófono. Verifica los permisos.',
+                'not-allowed': '🚫 Permiso de micrófono denegado. Actívalo en configuración.',
+                'network': '📶 Error de red. Verifica tu conexión a internet.',
+                'aborted': null, // Silent abort
+                'language-not-supported': '🌐 Idioma no soportado. Intenta de nuevo.'
+            };
+
+            const message = errorMessages[event.error] || `Error de voz: ${event.error}`;
+            if (message) {
+                App.showToast(message, 'error');
             }
         };
 
+        this.recognition.onnomatch = () => {
+            this.stopVoiceDictation();
+            App.showToast('🤔 No se pudo entender. Intenta de nuevo.', 'warning');
+        };
+
         this.recognition.onend = () => {
+            // Reset placeholder
+            const field = this.currentVoiceField;
+            if (field) {
+                const inputEl = document.getElementById(field === 'phone' ? 'quickPhone' : 'quickAddress');
+                if (inputEl) {
+                    inputEl.placeholder = field === 'phone' ? 'Ej: 0981 123 456' : 'Detectada automáticamente o dicta...';
+                }
+            }
             this.stopVoiceDictation();
         };
     },
 
     currentVoiceField: null,
 
-    startVoiceDictation(field) {
+    async startVoiceDictation(field) {
         if (!this.recognition) {
-            App.showToast('Dictado por voz no soportado', 'error');
+            App.showToast('❌ Dictado por voz no soportado en este navegador', 'error');
             return;
         }
 
@@ -1317,21 +1355,44 @@ const Signs = {
             return;
         }
 
+        // Request microphone permission explicitly first
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Stop the stream immediately - we just needed to trigger permission
+            stream.getTracks().forEach(track => track.stop());
+        } catch (permError) {
+            console.error('Microphone permission error:', permError);
+            if (permError.name === 'NotAllowedError') {
+                App.showToast('🚫 Permiso de micrófono denegado. Actívalo en la configuración del navegador.', 'error');
+            } else if (permError.name === 'NotFoundError') {
+                App.showToast('🎤 No se encontró micrófono en el dispositivo.', 'error');
+            } else {
+                App.showToast('⚠️ Error al acceder al micrófono: ' + permError.message, 'error');
+            }
+            return;
+        }
+
         this.currentVoiceField = field;
         this.isListening = true;
 
         // Update UI
         const voiceStatus = document.getElementById('voiceStatus');
-        voiceStatus.style.display = 'flex';
+        if (voiceStatus) voiceStatus.style.display = 'flex';
 
         const btnIcon = document.getElementById(field === 'phone' ? 'voiceBtnPhone' : 'voiceBtnAddress');
-        btnIcon.textContent = '🔴';
-        btnIcon.parentElement.classList.add('listening');
+        if (btnIcon) {
+            btnIcon.textContent = '🔴';
+            btnIcon.parentElement.classList.add('listening');
+        }
+
+        // Show feedback that we're listening
+        App.showToast('🎤 Escuchando... habla ahora', 'success');
 
         try {
             this.recognition.start();
         } catch (e) {
             console.error('Recognition start error:', e);
+            App.showToast('⚠️ Error al iniciar reconocimiento: ' + e.message, 'error');
             this.stopVoiceDictation();
         }
     },
