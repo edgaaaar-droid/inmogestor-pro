@@ -28,7 +28,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 41;
+const APP_VERSION = 42;
 
 // Auto-check for updates on page load
 (async function checkForUpdates() {
@@ -102,6 +102,12 @@ const App = {
 
         // Initialize user role for sub-user system
         await Storage.initUserRole();
+
+        // Check if user is a captador - show special limited view
+        if (Storage.isCaptador()) {
+            this.showCaptadorView(user);
+            return; // Don't continue with full app initialization
+        }
 
         // Check for pending invitations (shows banner if any)
         Auth.showInvitationBanner();
@@ -964,6 +970,165 @@ const App = {
             event.target.value = '';
         };
         reader.readAsText(file);
+    },
+
+    // ===== CAPTADOR VIEW =====
+    showCaptadorView(user) {
+        // Add captador class to body
+        document.body.classList.add('is-captador');
+
+        // Hide the normal app container
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) appContainer.style.display = 'none';
+
+        // Hide loader
+        const loader = document.getElementById('appLoader');
+        if (loader) loader.style.display = 'none';
+
+        // Create captador-only interface
+        const captadorView = document.createElement('div');
+        captadorView.id = 'captadorView';
+        captadorView.className = 'captador-view';
+        captadorView.innerHTML = `
+            <div class="captador-header">
+                <div class="captador-header-content">
+                    <div class="captador-logo">
+                        <img src="img/profile.jpg" alt="InmoGestor">
+                        <div>
+                            <h1>⚡ Captador</h1>
+                            <p>${user.displayName || user.email}</p>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="Auth.logout()">🚪 Salir</button>
+                </div>
+            </div>
+            
+            <div class="captador-main">
+                <div class="captador-quick-action">
+                    <button class="captador-big-btn" onclick="Signs.openQuickMode()">
+                        <span class="captador-big-icon">📸</span>
+                        <span class="captador-big-text">Agregar Cartel Rápido</span>
+                        <span class="captador-big-hint">Toma una foto y registra el teléfono</span>
+                    </button>
+                </div>
+                
+                <div class="captador-signs-section">
+                    <h2>📋 Mis Carteles Enviados</h2>
+                    <div id="captadorSignsList" class="captador-signs-list">
+                        <p style="color: var(--text-muted); text-align: center;">Cargando...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(captadorView);
+
+        // Initialize Signs module for Quick Mode
+        Signs.init();
+
+        // Load captador's own signs
+        this.loadCaptadorSigns();
+    },
+
+    async loadCaptadorSigns() {
+        const container = document.getElementById('captadorSignsList');
+        if (!container) return;
+
+        try {
+            // Get pending approvals from main user
+            const mainUserId = await Auth.getMainUserId();
+            const dataDoc = await db.collection('users').doc(mainUserId)
+                .collection('data').doc('main').get();
+
+            const data = dataDoc.exists ? dataDoc.data() : {};
+            const pending = (data.pendingApprovals || []).filter(p =>
+                p.type === 'sign' && p.addedBy === Auth.currentUser?.uid
+            );
+
+            if (pending.length === 0) {
+                container.innerHTML = `
+                    <div class="captador-empty">
+                        <span style="font-size: 3rem;">📭</span>
+                        <p>No has enviado carteles aún</p>
+                        <p style="font-size: 0.9rem; color: var(--text-muted);">Toca el botón de arriba para agregar uno</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = pending.map(item => `
+                <div class="captador-sign-item">
+                    <div class="captador-sign-info">
+                        <span class="captador-sign-type ${item.data.type}">${item.data.type === 'venta' ? '🔴 Venta' : '🔵 Alquiler'}</span>
+                        <strong>📞 ${item.data.phone || 'Sin teléfono'}</strong>
+                        <small>📍 ${item.data.address || 'Sin dirección'}</small>
+                        <small style="color: var(--warning);">⏳ Pendiente de aprobación</small>
+                    </div>
+                    ${item.data.photos?.[0] ? `<img src="${item.data.photos[0]}" class="captador-sign-thumb">` : ''}
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Error loading captador signs:', error);
+            container.innerHTML = '<p style="color: var(--danger);">Error cargando carteles</p>';
+        }
+    },
+
+    // ===== CAPTADORES MANAGEMENT PANEL =====
+    async showCaptadoresPanel() {
+        const subUsers = await Auth.getSubUsers();
+        const captadores = subUsers.filter(s => s.role === 'captador');
+        const inviteLink = Auth.generateCaptadorInviteLink();
+
+        const modal = document.getElementById('adminModal');
+        if (!modal) return;
+
+        modal.querySelector('.modal-content').innerHTML = `
+            <div class="modal-header">
+                <h2>📸 Mis Captadores</h2>
+                <button class="modal-close" onclick="document.getElementById('adminModal').classList.remove('active')">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 1.25rem; border-radius: 12px; margin-bottom: 1.5rem; color: white;">
+                    <h3 style="margin: 0 0 0.5rem 0;">📲 Invitar Nuevo Captador</h3>
+                    <p style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.75rem;">
+                        Los captadores solo pueden agregar carteles con el modo rápido. Los carteles van a tu cola de pendientes para aprobación.
+                    </p>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="captadorInviteLink" class="form-control" value="${inviteLink}" readonly style="font-size: 0.85rem; flex: 1;">
+                        <button class="btn" style="background: white; color: #d97706;" onclick="Auth.copyCaptadorInviteLink()">📋</button>
+                        <button class="btn" style="background: #25D366; color: white;" onclick="Auth.shareCaptadorInviteLink()">WhatsApp</button>
+                    </div>
+                </div>
+
+                <h3 style="margin-bottom: 1rem;">Captadores Activos (${captadores.filter(c => c.status === 'active').length})</h3>
+                <div class="captadores-list">
+                    ${captadores.length === 0 ? '<p style="color: var(--text-muted);">No tienes captadores aún</p>' : ''}
+                    ${captadores.filter(c => c.status === 'active').map(c => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid #f59e0b;">
+                            <div>
+                                <strong>${c.email}</strong>
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                                    📸 Captador ${c.acceptedAt ? '• desde ' + new Date(c.acceptedAt).toLocaleDateString() : ''}
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="Auth.handleRemoveSubUser('${c.email}')">✕ Remover</button>
+                        </div>
+                    `).join('')}
+                    ${captadores.filter(c => c.status === 'pending').length > 0 ? `
+                        <h4 style="margin: 1rem 0 0.5rem 0; color: var(--text-muted);">Pendientes de aceptar</h4>
+                        ${captadores.filter(c => c.status === 'pending').map(c => `
+                            <div style="padding: 0.75rem; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 0.5rem; opacity: 0.7;">
+                                <span style="color: var(--text-muted);">${c.email}</span>
+                                <span style="font-size: 0.75rem; color: var(--warning);"> - Invitación pendiente</span>
+                            </div>
+                        `).join('')}
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        modal.classList.add('active');
     }
 };
 

@@ -880,6 +880,18 @@ const Auth = {
 
         const data = userDoc.data();
         if (data.parentUserId) {
+            // Check if captador or secretary
+            if (data.role === 'captador') {
+                return {
+                    role: 'captador',
+                    parentUserId: data.parentUserId,
+                    canEdit: true,      // Can edit own signs
+                    canDelete: true,    // Can delete own signs
+                    canAdd: true,       // Adds go to pending
+                    signsOnly: true,    // Only access to signs/quick sign
+                    ownDataOnly: true   // Can only see their own data
+                };
+            }
             return {
                 role: 'secretary',
                 parentUserId: data.parentUserId,
@@ -892,8 +904,8 @@ const Auth = {
         return { role: 'owner', canEdit: true, canDelete: true, canAdd: true };
     },
 
-    // Invite a sub-user (secretary)
-    async inviteSubUser(email) {
+    // Invite a sub-user (secretary or captador)
+    async inviteSubUser(email, role = 'secretary') {
         if (!this.currentUser) {
             return { success: false, error: 'No hay usuario autenticado' };
         }
@@ -901,6 +913,11 @@ const Auth = {
         // Check if trying to invite self
         if (email === this.currentUser.email) {
             return { success: false, error: 'No puedes invitarte a ti mismo' };
+        }
+
+        // Validate role
+        if (!['secretary', 'captador'].includes(role)) {
+            return { success: false, error: 'Rol inválido' };
         }
 
         try {
@@ -920,18 +937,31 @@ const Auth = {
             // Add invitation
             subUsers.push({
                 email: email,
-                role: 'secretary',
+                role: role,
                 invitedAt: new Date().toISOString(),
                 status: 'pending'
             });
 
             await userRef.update({ subUsers });
 
-            return { success: true, message: `Invitación enviada a ${email}` };
+            const roleLabel = role === 'captador' ? 'captador' : 'secretario';
+            return { success: true, message: `Invitación de ${roleLabel} enviada a ${email}` };
         } catch (error) {
             console.error('Error inviting sub-user:', error);
             return { success: false, error: 'Error al enviar invitación' };
         }
+    },
+
+    // Shortcut to invite a captador
+    async inviteCaptador(email) {
+        return this.inviteSubUser(email, 'captador');
+    },
+
+    // Generate captador invite link
+    generateCaptadorInviteLink() {
+        if (!this.currentUser) return '';
+        const baseUrl = window.location.origin + window.location.pathname;
+        return `${baseUrl}?invite=${this.currentUser.uid}&role=captador`;
     },
 
     // Check for pending invitations for current user
@@ -991,21 +1021,26 @@ const Auth = {
                 return { success: false, error: 'Invitación no encontrada' };
             }
 
+            // Get the role from the invitation
+            const invitedRole = subUsers[invitationIndex].role || 'secretary';
+
             // Update invitation status
             subUsers[invitationIndex].status = 'active';
             subUsers[invitationIndex].acceptedAt = new Date().toISOString();
             subUsers[invitationIndex].subUserId = this.currentUser.uid;
             await mainUserRef.update({ subUsers });
 
-            // Update current user's document to link to main user
+            // Update current user's document to link to main user with the correct role
             await db.collection('users').doc(this.currentUser.uid).update({
                 parentUserId: mainUserId,
-                role: 'secretary'
+                role: invitedRole
             });
 
+            const roleLabel = invitedRole === 'captador' ? 'captador' : 'secretario';
             return {
                 success: true,
-                message: `Ahora eres secretario de ${mainUserData.displayName || mainUserData.email}`
+                role: invitedRole,
+                message: `Ahora eres ${roleLabel} de ${mainUserData.displayName || mainUserData.email}`
             };
         } catch (error) {
             console.error('Error accepting invitation:', error);
@@ -1169,6 +1204,24 @@ const Auth = {
     shareInviteLink() {
         const link = this.generateInviteLink();
         const message = `Hola! Te invito a ser mi secretario en InmoGestor Pro. Abre este link para registrarte:\n\n${link}`;
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+    },
+
+    // Copy captador invitation link to clipboard
+    copyCaptadorInviteLink() {
+        const input = document.getElementById('captadorInviteLink');
+        if (input) {
+            input.select();
+            document.execCommand('copy');
+            App.showToast('✓ Link copiado al portapapeles', 'success');
+        }
+    },
+
+    // Share captador invitation link via WhatsApp
+    shareCaptadorInviteLink() {
+        const link = this.generateCaptadorInviteLink();
+        const message = `Hola! Te invito a ser mi captador en InmoGestor Pro. Solo podrás agregar carteles con fotos.\n\nAbre este link para registrarte:\n${link}`;
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
     },

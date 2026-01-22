@@ -632,9 +632,10 @@ const Storage = {
             this.userRole = await Auth.getUserRole();
             this.mainUserId = await Auth.getMainUserId();
 
-            // If sub-user, sync from main user's data
-            if (this.userRole?.role === 'secretary' && this.mainUserId) {
-                console.log('👥 Sub-usuario detectado, sincronizando con usuario principal...');
+            // If sub-user (secretary or captador), sync from main user's data
+            if ((this.userRole?.role === 'secretary' || this.userRole?.role === 'captador') && this.mainUserId) {
+                const roleLabel = this.userRole.role === 'captador' ? 'Captador' : 'Secretario';
+                console.log(`👥 ${roleLabel} detectado, sincronizando con usuario principal...`);
                 this.currentUserId = this.mainUserId; // Use main user's data path
                 await this.syncFromCloud();
             }
@@ -657,6 +658,7 @@ const Storage = {
             // Add ID and metadata to the data
             data.id = this.generateId();
             data.createdAt = new Date().toISOString();
+            data.createdBy = Auth.currentUser?.uid; // Track who created it
 
             pending.push({
                 type: type, // 'property', 'client', 'sign'
@@ -679,8 +681,18 @@ const Storage = {
         }
     },
 
-    // Check if current user is a sub-user
+    // Check if current user is a sub-user (secretary)
     isSecretary() {
         return this.userRole?.role === 'secretary';
+    },
+
+    // Check if current user is a captador
+    isCaptador() {
+        return this.userRole?.role === 'captador';
+    },
+
+    // Check if current user is any type of sub-user
+    isSubUser() {
+        return this.isSecretary() || this.isCaptador();
     }
 };

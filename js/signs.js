@@ -1467,15 +1467,22 @@ const Signs = {
             quickCapture: true
         };
 
-        // Secretary restriction
-        if (Storage.isSecretary()) {
+        // Secretary or Captador restriction - send to pending queue
+        if (Storage.isSecretary() || Storage.isCaptador()) {
             Storage.savePending('sign', sign);
+            this.closeQuickMode();
+
+            // If captador, refresh their signs list
+            if (Storage.isCaptador() && typeof App.loadCaptadorSigns === 'function') {
+                App.loadCaptadorSigns();
+            } else {
+                this.render();
+            }
         } else {
             Storage.saveSign(sign);
+            this.closeQuickMode();
+            this.render();
+            App.showToast('⚡ Cartel guardado rápidamente!', 'success');
         }
-
-        this.closeQuickMode();
-        this.render();
-        App.showToast('⚡ Cartel guardado rápidamente!', 'success');
     }
 };
