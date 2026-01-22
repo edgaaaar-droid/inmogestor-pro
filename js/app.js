@@ -28,7 +28,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 44;
+const APP_VERSION = 46;
 
 // Auto-check for updates on page load
 (async function checkForUpdates() {
@@ -451,9 +451,9 @@ const App = {
             <div class="section-header">
                 <div>
                     <h1>📍 Mapa de Propiedades</h1>
-                    <p class="section-subtitle">Visualiza todas tus propiedades en el mapa</p>
+                    <p class="section-subtitle">Visualiza propiedades y carteles en el mapa</p>
                 </div>
-                <div class="filter-group">
+                <div class="filter-group" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
                     <select id="mapFilterStatus" class="filter-select" onchange="Properties.renderGeneralMap()">
                         <option value="">Todas</option>
                         <option value="available" selected>Disponibles</option>
@@ -461,6 +461,13 @@ const App = {
                         <option value="sold">Vendidas</option>
                         <option value="rented">Alquiladas</option>
                     </select>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                        <input type="checkbox" id="mapShowSigns" checked onchange="Properties.renderGeneralMap()" style="width: 18px; height: 18px; cursor: pointer;">
+                        <span>📸 Carteles</span>
+                    </label>
+                    <button id="mapSatelliteBtn" class="btn btn-sm btn-secondary" onclick="Properties.toggleSatelliteView()" style="font-size: 0.85rem;">
+                        🛰️ Satélite
+                    </button>
                 </div>
             </div>
             <div id="generalMapContainer" style="height:calc(100vh - 200px); width:100%; border-radius:var(--radius); overflow:hidden; background:var(--bg-tertiary);"></div>

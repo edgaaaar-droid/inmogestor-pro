@@ -1389,9 +1389,20 @@ const Properties = {
         if (!this.generalMap) {
             // Default: Asunción, Paraguay
             this.generalMap = L.map('generalMapContainer').setView([-25.2867, -57.6470], 12);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+            // Street layer (default)
+            this.streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap'
-            }).addTo(this.generalMap);
+            });
+
+            // Satellite layer (Esri World Imagery)
+            this.satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri'
+            });
+
+            // Add street layer by default
+            this.streetLayer.addTo(this.generalMap);
+            this.isSatelliteView = false;
         }
 
         this.renderGeneralMap();
@@ -1400,6 +1411,25 @@ const Properties = {
         setTimeout(() => {
             this.generalMap.invalidateSize();
         }, 150);
+    },
+
+    // Toggle satellite view
+    toggleSatelliteView() {
+        if (!this.generalMap) return;
+
+        const btn = document.getElementById('mapSatelliteBtn');
+
+        if (this.isSatelliteView) {
+            this.generalMap.removeLayer(this.satelliteLayer);
+            this.streetLayer.addTo(this.generalMap);
+            this.isSatelliteView = false;
+            if (btn) btn.innerHTML = '🛰️ Satélite';
+        } else {
+            this.generalMap.removeLayer(this.streetLayer);
+            this.satelliteLayer.addTo(this.generalMap);
+            this.isSatelliteView = true;
+            if (btn) btn.innerHTML = '🗺️ Mapa';
+        }
     },
 
     renderGeneralMap() {
@@ -1413,6 +1443,8 @@ const Properties = {
         });
 
         const statusFilter = document.getElementById('mapFilterStatus')?.value || '';
+        const showSigns = document.getElementById('mapShowSigns')?.checked ?? true;
+
         let properties = Storage.getProperties();
 
         if (statusFilter) {
@@ -1422,8 +1454,13 @@ const Properties = {
         const statusLabels = { available: 'Disponible', reserved: 'Reservado', sold: 'Vendido', rented: 'Alquilado' };
         const statusColors = { available: '#10b981', reserved: '#f59e0b', sold: '#ef4444', rented: '#06b6d4' };
 
+        let propCount = 0;
+        let signCount = 0;
+
+        // Render properties
         properties.forEach(p => {
             if (p.lat && p.lng) {
+                propCount++;
                 const color = statusColors[p.status] || '#BE9F56';
 
                 // Custom icon with status color
@@ -1438,7 +1475,7 @@ const Properties = {
 
                 marker.bindPopup(`
                     <div style="min-width:180px; font-family:Inter,sans-serif;">
-                        <b style="font-size:1rem;">${p.title}</b><br>
+                        <b style="font-size:1rem;">🏠 ${p.title}</b><br>
                         <span style="color:#666;">📍 ${p.address || 'Sin dirección'}</span><br>
                         <span style="font-size:1.1rem; font-weight:bold; color:#BE9F56;">${p.currency} ${this.formatPrice(p.price)}</span><br>
                         <span style="display:inline-block; margin-top:4px; padding:2px 8px; border-radius:4px; font-size:0.75rem; background:${color}; color:white;">${statusLabels[p.status] || p.status}</span>
@@ -1448,11 +1485,44 @@ const Properties = {
             }
         });
 
+        // Render signs if checkbox is checked
+        if (showSigns) {
+            const signs = Storage.getSigns();
+            signs.forEach(s => {
+                if (s.lat && s.lng) {
+                    signCount++;
+                    const signColor = s.type === 'venta' ? '#ef4444' : '#3b82f6'; // Red for sale, blue for rent
+
+                    // Custom icon for signs - different shape (square with rounded corners)
+                    const icon = L.divIcon({
+                        className: 'custom-marker sign-marker',
+                        html: `<div style="background:${signColor}; width:20px; height:20px; border-radius:4px; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; font-size:10px;">📋</div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+
+                    const marker = L.marker([s.lat, s.lng], { icon }).addTo(this.generalMap);
+
+                    marker.bindPopup(`
+                        <div style="min-width:160px; font-family:Inter,sans-serif;">
+                            <b style="font-size:0.95rem;">📋 Cartel ${s.type === 'venta' ? '🔴 Venta' : '🔵 Alquiler'}</b><br>
+                            <span style="color:#666;">📞 ${s.phone || 'Sin teléfono'}</span><br>
+                            <span style="color:#666;">📍 ${s.address || 'Sin dirección'}</span><br>
+                            <span style="font-size:0.75rem; color:#888;">${s.createdAt ? new Date(s.createdAt).toLocaleDateString() : ''}</span>
+                        </div>
+                    `);
+                }
+            });
+        }
+
         // Update the title with count
         const headerTitle = document.querySelector('#section-map .section-header h1');
         if (headerTitle) {
-            const withCoords = properties.filter(p => p.lat && p.lng).length;
-            headerTitle.innerHTML = `📍 Mapa de Propiedades <small style="font-size:0.5em; color:var(--text-muted);">(${withCoords} en mapa)</small>`;
+            let countText = `${propCount} propiedad${propCount !== 1 ? 'es' : ''}`;
+            if (showSigns && signCount > 0) {
+                countText += `, ${signCount} cartel${signCount !== 1 ? 'es' : ''}`;
+            }
+            headerTitle.innerHTML = `📍 Mapa <small style="font-size:0.5em; color:var(--text-muted);">(${countText})</small>`;
         }
     },
 

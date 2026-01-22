@@ -632,6 +632,35 @@ const Storage = {
             this.userRole = await Auth.getUserRole();
             this.mainUserId = await Auth.getMainUserId();
 
+            console.log('🔐 User role loaded:', this.userRole);
+            console.log('🔐 Main user ID:', this.mainUserId);
+
+            // SELF-HEALING: Check if my role matches what the parent user says
+            if (this.mainUserId && this.mainUserId !== this.currentUserId) {
+                try {
+                    const parentDoc = await db.collection('users').doc(this.mainUserId).get();
+                    if (parentDoc.exists) {
+                        const subUsers = parentDoc.data().subUsers || [];
+                        const myEntry = subUsers.find(s => s.subUserId === this.currentUserId);
+
+                        if (myEntry && myEntry.role && myEntry.role !== this.userRole?.role) {
+                            console.log(`🔄 Rol desactualizado. Actualizando de ${this.userRole?.role} a ${myEntry.role}`);
+
+                            // Update my local document
+                            await db.collection('users').doc(this.currentUserId).update({
+                                role: myEntry.role
+                            });
+
+                            // Reload role info
+                            this.userRole = await Auth.getUserRole();
+                            console.log('✅ Rol actualizado:', this.userRole);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error syncing role from parent:', err);
+                }
+            }
+
             // If sub-user (secretary or captador), sync from main user's data
             if ((this.userRole?.role === 'secretary' || this.userRole?.role === 'captador') && this.mainUserId) {
                 const roleLabel = this.userRole.role === 'captador' ? 'Captador' : 'Secretario';
