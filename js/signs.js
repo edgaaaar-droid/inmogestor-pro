@@ -1009,7 +1009,7 @@ const Signs = {
 
                     <!-- Photo Capture -->
                     <div class="quick-photo-section">
-                        <input type="file" id="quickCameraInput" multiple accept="image/*" hidden>
+                        <input type="file" id="quickCameraInput" accept="image/*" capture="environment" hidden>
                         <div id="quickPhotoPreview" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; min-height: 80px;">
                             <div class="quick-add-photo-btn" onclick="document.getElementById('quickCameraInput').click()" style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); border: 2px dashed rgba(255,255,255,0.3); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; flex-shrink: 0;">
                                 📷
