@@ -15,33 +15,36 @@ const urlsToCache = [
     './img/profile.jpg'
 ];
 
-// Install event - cache files
-self.addEventListener('install', (event) => {
+// Install event
+self.addEventListener('install', event => {
+    // Force immediate activation
+    self.skipWaiting();
+
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Cache opened');
+            .then(cache => {
+                console.log('Opened cache');
                 return cache.addAll(urlsToCache);
             })
-            .catch((error) => {
-                console.log('Cache failed:', error);
-            })
     );
-    self.skipWaiting();
 });
 
-// Activate event - clean old caches
-self.addEventListener('activate', (event) => {
+// Activate event - Clean old caches
+self.addEventListener('activate', event => {
+    // Take control of all clients immediately
+    event.waitUntil(clients.claim());
+
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
+        caches.keys().then(cacheNames => {
             return Promise.all(
-                cacheNames
-                    .filter((name) => name !== CACHE_NAME)
-                    .map((name) => caches.delete(name))
+                cacheNames.map(cacheName => {
+                    if (cacheName !== CACHE_NAME) {
+                        return caches.delete(cacheName);
+                    }
+                })
             );
         })
     );
-    self.clients.claim();
 });
 
 // Fetch event - network first, fallback to cache
