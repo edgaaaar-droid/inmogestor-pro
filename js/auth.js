@@ -23,18 +23,25 @@ const Auth = {
         return this.currentUser.email.toLowerCase().trim() === this.ADMIN_EMAIL.toLowerCase().trim();
     },
 
-    // Get invitation code from URL (format: ?invite=userId or #invite=userId)
+    // Get invitation code and role from URL (format: ?invite=userId&role=captador)
     getInviteCodeFromUrl() {
         // Check URL params
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('invite')) {
-            return urlParams.get('invite');
+            return {
+                userId: urlParams.get('invite'),
+                role: urlParams.get('role') || 'secretary'
+            };
         }
         // Check hash params
         const hash = window.location.hash;
         if (hash.includes('invite=')) {
-            const match = hash.match(/invite=([^&]+)/);
-            return match ? match[1] : null;
+            const userMatch = hash.match(/invite=([^&]+)/);
+            const roleMatch = hash.match(/role=([^&]+)/);
+            return {
+                userId: userMatch ? userMatch[1] : null,
+                role: roleMatch ? roleMatch[1] : 'secretary'
+            };
         }
         return null;
     },
@@ -54,27 +61,29 @@ const Auth = {
             await result.user.updateProfile({ displayName });
 
             // Check if there's an invitation code in the URL
-            const inviteCode = this.getInviteCodeFromUrl();
+            const inviteData = this.getInviteCodeFromUrl();
 
-            if (inviteCode) {
-                // This is a secretary registration via invite link
+            if (inviteData && inviteData.userId) {
+                // This is a sub-user registration via invite link
+                const inviteRole = inviteData.role; // 'secretary' or 'captador'
+
                 await db.collection('users').doc(result.user.uid).set({
                     email: email,
                     displayName: displayName,
                     createdAt: new Date().toISOString(),
-                    parentUserId: inviteCode,
-                    role: 'secretary'
+                    parentUserId: inviteData.userId,
+                    role: inviteRole
                 });
 
                 // Update the main user's subUsers list
-                const mainUserRef = db.collection('users').doc(inviteCode);
+                const mainUserRef = db.collection('users').doc(inviteData.userId);
                 const mainUserDoc = await mainUserRef.get();
                 if (mainUserDoc.exists) {
                     const subUsers = mainUserDoc.data().subUsers || [];
                     subUsers.push({
                         email: email,
                         subUserId: result.user.uid,
-                        role: 'secretary',
+                        role: inviteRole,
                         invitedAt: new Date().toISOString(),
                         status: 'active'
                     });
@@ -84,7 +93,8 @@ const Auth = {
                 // Clear the invite code from URL
                 window.history.replaceState({}, document.title, window.location.pathname);
 
-                App.showToast('✓ Te registraste como secretario', 'success');
+                const roleLabel = inviteRole === 'captador' ? 'captador' : 'secretario';
+                App.showToast(`✓ Te registraste como ${roleLabel}`, 'success');
             } else {
                 // Normal registration
                 await db.collection('users').doc(result.user.uid).set({
