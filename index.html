@@ -26,101 +26,27 @@
 
     <!-- MANDATORY UPDATE CHECK - Blocks app if update available -->
     <script>
-        (function () {
-            var LOCAL_VERSION = 46; // Increment this with each deploy
-
-            fetch('./version.json?t=' + Date.now())
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    var serverVer = data.version;
-                    if (serverVer) {
-                        console.log('📱 Version: local=v' + LOCAL_VERSION + ', server=v' + serverVer);
-
-                        if (serverVer > LOCAL_VERSION) {
-                            // BLOCK THE ENTIRE APP
-                            document.addEventListener('DOMContentLoaded', function () {
-                                // Create fullscreen blocking overlay
-                                var overlay = document.createElement('div');
-                                overlay.id = 'updateBlocker';
-                                overlay.style.cssText = 'position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f,#0f172a);z-index:9999999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Inter,sans-serif;color:white;text-align:center;padding:20px;';
-                                overlay.innerHTML =
-                                    '<div style="font-size:60px;margin-bottom:20px;">🔄</div>' +
-                                    '<h1 style="margin:0 0 10px 0;font-size:24px;">Actualización Disponible</h1>' +
-                                    '<p style="margin:0 0 5px 0;opacity:0.8;">Tu versión: <b>v' + LOCAL_VERSION + '</b></p>' +
-                                    '<p style="margin:0 0 30px 0;opacity:0.8;">Nueva versión: <b>v' + serverVer + '</b></p>' +
-                                    '<button onclick="doForceUpdate()" style="background:#22c55e;color:white;border:none;padding:16px 40px;border-radius:12px;font-size:18px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(34,197,94,0.4);">✓ ACTUALIZAR AHORA</button>' +
-                                    '<p style="margin-top:20px;font-size:12px;opacity:0.6;">Debes actualizar para continuar</p>' +
-                                    '<button onclick="doNuclearReset()" style="margin-top:40px;background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">⚠️ Restablecer Todo (Si falla)</button>';
-                                document.body.appendChild(overlay);
-
-                                // Hide the loading screen
-                                var loader = document.getElementById('appLoader');
-                                if (loader) loader.style.display = 'none';
-                            });
-                        }
-                    }
-                })
-                .catch(function (e) { console.log('Version check skipped:', e); });
-
-            window.doNuclearReset = function () {
-                if (!confirm('¿Estás seguro? Esto borrará todos los datos locales de la aplicación y la reiniciará.')) return;
-
-                var blocker = document.getElementById('updateBlocker');
-                if (blocker) blocker.innerHTML = '<h1 style="font-size:24px;">Restableciendo...</h1>';
-
-                // 1. Unregister all SWs
-                navigator.serviceWorker.getRegistrations().then(function (regs) {
-                    regs.forEach(function (r) { r.unregister(); });
-                });
-
-                // 2. Clear all Caches
-                caches.keys().then(function (names) {
-                    names.forEach(function (n) { caches.delete(n); });
-                });
-
-                // 3. Clear Storage
-                localStorage.clear();
-                sessionStorage.clear();
-
-                // 4. Force Reload
-                setTimeout(function () {
-                    window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
-                }, 1000);
-            };
-
-            window.doForceUpdate = function () {
-                // Show updating message
-                var blocker = document.getElementById('updateBlocker');
-                if (blocker) {
-                    blocker.innerHTML =
-                        '<div style="font-size:60px;margin-bottom:20px;">⏳</div>' +
-                        '<h1 style="margin:0 0 20px 0;font-size:24px;">Actualizando...</h1>' +
-                        '<p style="opacity:0.8;">Por favor espera, limpiando caché...</p>';
+        // EMERGENCY FIX: Unregister all Service Workers immediately to clear cache issues
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
+                    console.log('🗑️ Unregistering SW:', registration);
+                    registration.unregister();
                 }
+            });
+        }
 
-                // Aggressive Cache Clearing
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(function (regs) {
-                        for (let registration of regs) {
-                            registration.unregister();
-                        }
-                    });
+        // Clear Caches
+        if ('caches' in window) {
+            caches.keys().then(function (names) {
+                for (let name of names) {
+                    console.log('🗑️ Deleting cache:', name);
+                    caches.delete(name);
                 }
+            });
+        }
 
-                if ('caches' in window) {
-                    caches.keys().then(function (names) {
-                        for (let name of names) {
-                            caches.delete(name);
-                        }
-                    });
-                }
-
-                // Force reload bypassing cache after short delay
-                setTimeout(function () {
-                    window.location.reload(true);
-                }, 1500);
-            };
-        })();
+        console.log('🚀 App forcing fresh load (No Service Worker)');
     </script>
     <style>
         /* Password toggle styles */
