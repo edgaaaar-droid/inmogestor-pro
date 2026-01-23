@@ -1,0 +1,40 @@
+{
+  "name": "inmogestor-pro",
+  "version": "1.0.50",
+  "description": "Sistema de Gestión Inmobiliaria Profesional",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "deploy:web": "gh-pages -d . -s \"**/*\" -s \"!dist/**\" -s \"!dist-packager/**\" -s \"!node_modules/**\""
+  },
+  "keywords": [
+    "real-estate",
+    "management",
+    "crm"
+  ],
+  "author": "Edgar Paniagua",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "gh-pages": "^6.3.0"
+  },
+  "build": {
+    "appId": "com.edgarpaniagua.inmogestor",
+    "productName": "InmoGestor Pro",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "img/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}
