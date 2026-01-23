@@ -164,6 +164,109 @@ const Properties = {
         this.container.querySelectorAll('.property-card').forEach(card => {
             card.addEventListener('click', () => this.showDetail(card.dataset.id));
         });
+
+        // Initialize carousels with swipe support
+        this.initCarousels();
+    },
+
+    // ===== CAROUSEL SYSTEM =====
+    carouselState: {}, // { propertyId: { currentIndex: 0, totalImages: n } }
+
+    carouselNav(propertyId, direction) {
+        const carousel = document.querySelector(`.property-carousel[data-property-id="${propertyId}"]`);
+        if (!carousel) return;
+
+        const track = carousel.querySelector('.carousel-track');
+        const images = track.querySelectorAll('img');
+        const dots = carousel.querySelectorAll('.carousel-dot');
+        const counter = carousel.querySelector('.carousel-counter');
+
+        if (!this.carouselState[propertyId]) {
+            this.carouselState[propertyId] = { currentIndex: 0, totalImages: images.length };
+        }
+
+        const state = this.carouselState[propertyId];
+        state.currentIndex += direction;
+
+        // Wrap around
+        if (state.currentIndex < 0) state.currentIndex = state.totalImages - 1;
+        if (state.currentIndex >= state.totalImages) state.currentIndex = 0;
+
+        // Apply transform
+        track.style.transform = `translateX(-${state.currentIndex * 100}%)`;
+
+        // Update dots
+        dots.forEach((dot, i) => dot.classList.toggle('active', i === state.currentIndex));
+
+        // Update counter
+        if (counter) counter.textContent = `${state.currentIndex + 1}/${state.totalImages}`;
+    },
+
+    initCarousels() {
+        const carousels = document.querySelectorAll('.property-carousel');
+
+        carousels.forEach(carousel => {
+            const propertyId = carousel.dataset.propertyId;
+            const track = carousel.querySelector('.carousel-track');
+            const images = track.querySelectorAll('img');
+
+            // Init state
+            this.carouselState[propertyId] = { currentIndex: 0, totalImages: images.length };
+
+            // Swipe detection
+            let startX = 0;
+            let startY = 0;
+            let isDragging = false;
+
+            carousel.addEventListener('touchstart', (e) => {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                isDragging = true;
+            }, { passive: true });
+
+            carousel.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                // Detect mostly horizontal swipe
+                const diffX = e.touches[0].clientX - startX;
+                const diffY = e.touches[0].clientY - startY;
+
+                if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) {
+                    e.preventDefault(); // Prevent scroll when swiping horizontally
+                }
+            }, { passive: false });
+
+            carousel.addEventListener('touchend', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+
+                const endX = e.changedTouches[0].clientX;
+                const diffX = endX - startX;
+
+                // Minimum swipe distance: 50px
+                if (Math.abs(diffX) > 50) {
+                    if (diffX > 0) {
+                        this.carouselNav(propertyId, -1); // Swipe right = previous
+                    } else {
+                        this.carouselNav(propertyId, 1); // Swipe left = next
+                    }
+                }
+            }, { passive: true });
+
+            // Dot click handlers
+            const dots = carousel.querySelectorAll('.carousel-dot');
+            dots.forEach(dot => {
+                dot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const index = parseInt(dot.dataset.index);
+                    const state = this.carouselState[propertyId];
+                    const diff = index - state.currentIndex;
+                    if (diff !== 0) {
+                        state.currentIndex = index - 1; // -1 because carouselNav will add direction
+                        this.carouselNav(propertyId, 1);
+                    }
+                });
+            });
+        });
     },
 
     // ===== EXCEL / CSV SYSTEM =====
@@ -584,13 +687,12 @@ const Properties = {
         const typeIcons = { house: '🏠', apartment: '🏢', land: '🌳', commercial: '🏪', office: '💼' };
         const typeLabels = { house: 'Casa', apartment: 'Departamento', land: 'Terreno', commercial: 'Comercial', office: 'Oficina' };
         const captacionLabels = { propia_exclusiva: 'Exclusividad', propia_cartera: 'Cartera Propia', c21_cartera: 'C21 Cartera', c21_sky: 'C21 Sky', c21_captaciones: 'C21 Captaciones' };
-        const mainImage = property.images?.[0] || '';
+        const images = property.images || [];
+        const hasMultipleImages = images.length > 1;
         const canMarkAsSold = property.status === 'available' || property.status === 'reserved';
 
         // Build captador info section
         let captadorSection = '';
-
-        // C21 Sky ID Logic: Show ID ONLY if source is C21 related
         const showId = ['c21_sky', 'c21_captaciones', 'c21_cartera'].includes(property.captacionSource);
 
         if (property.captadorAgent || property.captadorAgency || showId) {
@@ -603,14 +705,50 @@ const Properties = {
             `;
         }
 
-        return `
-            <div class="property-card" data-id="${property.id}">
+        // Build carousel or single image
+        let imageSection = '';
+        if (images.length === 0) {
+            // No images - show placeholder
+            imageSection = `
                 <div class="property-image">
-                    ${mainImage ? `<img src="${mainImage}" alt="${property.title}">` : `<div class="placeholder-image">${typeIcons[property.type] || '🏠'}</div>`}
+                    <div class="placeholder-image">${typeIcons[property.type] || '🏠'}</div>
                     <span class="property-status status-${property.status}">${statusLabels[property.status]}</span>
                     <span class="property-type-badge">${typeIcons[property.type] || '🏠'} ${typeLabels[property.type] || property.type}</span>
                     ${property.captacionSource ? `<span class="captacion-badge">${captacionLabels[property.captacionSource] || property.captacionSource}</span>` : ''}
                 </div>
+            `;
+        } else if (images.length === 1) {
+            // Single image - no carousel needed
+            imageSection = `
+                <div class="property-image">
+                    <img src="${images[0]}" alt="${property.title}">
+                    <span class="property-status status-${property.status}">${statusLabels[property.status]}</span>
+                    <span class="property-type-badge">${typeIcons[property.type] || '🏠'} ${typeLabels[property.type] || property.type}</span>
+                    ${property.captacionSource ? `<span class="captacion-badge">${captacionLabels[property.captacionSource] || property.captacionSource}</span>` : ''}
+                </div>
+            `;
+        } else {
+            // Multiple images - build carousel
+            const dotsHtml = images.map((_, i) => `<span class="carousel-dot${i === 0 ? ' active' : ''}" data-index="${i}"></span>`).join('');
+            const imagesHtml = images.map(img => `<img src="${img}" alt="${property.title}">`).join('');
+
+            imageSection = `
+                <div class="property-carousel" data-property-id="${property.id}">
+                    <div class="carousel-track">${imagesHtml}</div>
+                    <button class="carousel-prev" onclick="event.stopPropagation(); Properties.carouselNav('${property.id}', -1)">‹</button>
+                    <button class="carousel-next" onclick="event.stopPropagation(); Properties.carouselNav('${property.id}', 1)">›</button>
+                    <div class="carousel-dots">${dotsHtml}</div>
+                    <span class="carousel-counter">1/${images.length}</span>
+                    <span class="property-status status-${property.status}">${statusLabels[property.status]}</span>
+                    <span class="property-type-badge">${typeIcons[property.type] || '🏠'} ${typeLabels[property.type] || property.type}</span>
+                    ${property.captacionSource ? `<span class="captacion-badge">${captacionLabels[property.captacionSource] || property.captacionSource}</span>` : ''}
+                </div>
+            `;
+        }
+
+        return `
+            <div class="property-card" data-id="${property.id}">
+                ${imageSection}
                 <div class="property-info">
                     <h3 class="property-title">${property.title}</h3>
                     <p class="property-address">📍 ${property.address}</p>

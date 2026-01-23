@@ -514,6 +514,105 @@ button[title="Cerrar Sesión"]:hover {
     object-fit: cover;
 }
 
+/* ===== PROPERTY CAROUSEL ===== */
+.property-carousel {
+    height: 200px;
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--border-color) 100%);
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y pinch-zoom;
+}
+
+.carousel-track {
+    display: flex;
+    height: 100%;
+    transition: transform 0.3s ease-out;
+    will-change: transform;
+}
+
+.carousel-track img {
+    min-width: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    flex-shrink: 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+.carousel-prev,
+.carousel-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s;
+    z-index: 10;
+}
+
+.property-carousel:hover .carousel-prev,
+.property-carousel:hover .carousel-next,
+.carousel-prev:focus,
+.carousel-next:focus {
+    opacity: 1;
+}
+
+.carousel-prev { left: 8px; }
+.carousel-next { right: 8px; }
+
+.carousel-prev:hover,
+.carousel-next:hover {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+.carousel-dots {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+}
+
+.carousel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.carousel-dot.active {
+    background: white;
+    transform: scale(1.25);
+}
+
+.carousel-counter {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    z-index: 10;
+}
+
 .property-status {
     position: absolute;
     top: 1rem;
