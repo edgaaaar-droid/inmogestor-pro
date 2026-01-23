@@ -23,31 +23,10 @@
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <!-- ExcelJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <!-- Chart.js for Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- MANDATORY UPDATE CHECK - Blocks app if update available -->
-    <script>
-        // EMERGENCY FIX: Unregister all Service Workers immediately to clear cache issues
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (registrations) {
-                for (let registration of registrations) {
-                    console.log('🗑️ Unregistering SW:', registration);
-                    registration.unregister();
-                }
-            });
-        }
-
-        // Clear Caches
-        if ('caches' in window) {
-            caches.keys().then(function (names) {
-                for (let name of names) {
-                    console.log('🗑️ Deleting cache:', name);
-                    caches.delete(name);
-                }
-            });
-        }
-
-        console.log('🚀 App forcing fresh load (No Service Worker)');
-    </script>
     <style>
         /* Password toggle styles */
         .password-input-wrapper {
@@ -159,7 +138,7 @@
             </nav>
             <div class="sidebar-footer">
                 <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
-                    <span id="appVersion">v39</span>
+                    <span id="appVersion">v48</span>
                     <button onclick="forceAppUpdate()"
                         style="background:none; border:1px solid var(--text-muted); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:5px; cursor:pointer;">🔄
                         Actualizar</button>
@@ -398,15 +377,15 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
     </script>
-    <script src="js/storage.js?v=7"></script>
-    <script src="js/auth.js?v=7"></script>
-    <script src="js/properties.js?v=7"></script>
-    <script src="js/clients.js?v=7"></script>
-    <script src="js/followups.js?v=7"></script>
-    <script src="js/signs.js?v=7"></script>
+    <script src="js/storage.js?v=48"></script>
+    <script src="js/auth.js?v=48"></script>
+    <script src="js/properties.js?v=48"></script>
+    <script src="js/clients.js?v=48"></script>
+    <script src="js/followups.js?v=48"></script>
+    <script src="js/signs.js?v=48"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="js/pdf-generator.js?v=7"></script>
-    <script src="js/app.js?v=7"></script>
+    <script src="js/pdf-generator.js?v=48"></script>
+    <script src="js/app.js?v=48"></script>
     <!-- Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {

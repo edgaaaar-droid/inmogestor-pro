@@ -53,6 +53,9 @@ const Properties = {
         document.getElementById('filterStatus')?.addEventListener('change', () => this.render());
         document.getElementById('filterType')?.addEventListener('change', () => this.render());
         document.getElementById('filterCaptacion')?.addEventListener('change', () => this.render());
+        document.getElementById('filterOperation')?.addEventListener('change', () => this.render());
+        document.getElementById('filterBedrooms')?.addEventListener('change', () => this.render());
+        document.getElementById('filterPriceRange')?.addEventListener('change', () => this.render());
 
         // Image upload drag and drop
         const uploadArea = document.getElementById('propertyImageUpload');
@@ -108,10 +111,19 @@ const Properties = {
         const statusFilter = document.getElementById('filterStatus')?.value;
         const typeFilter = document.getElementById('filterType')?.value;
         const captacionFilter = document.getElementById('filterCaptacion')?.value;
+        const operationFilter = document.getElementById('filterOperation')?.value;
+        const bedroomsFilter = document.getElementById('filterBedrooms')?.value;
+        const priceRangeFilter = document.getElementById('filterPriceRange')?.value;
 
         if (statusFilter) properties = properties.filter(p => p.status === statusFilter);
         if (typeFilter) properties = properties.filter(p => p.type === typeFilter);
         if (captacionFilter) properties = properties.filter(p => p.captacionSource === captacionFilter);
+        if (operationFilter) properties = properties.filter(p => p.operation === operationFilter);
+        if (bedroomsFilter) properties = properties.filter(p => (p.bedrooms || 0) >= parseInt(bedroomsFilter));
+        if (priceRangeFilter) {
+            const [minPrice, maxPrice] = priceRangeFilter.split('-').map(Number);
+            properties = properties.filter(p => (p.price || 0) >= minPrice && (p.price || 0) <= maxPrice);
+        }
 
         // Inject Buttons into Header if not present OR update if missing Report
         const headerActions = document.querySelector('#section-properties .section-header');
@@ -615,6 +627,12 @@ const Properties = {
                         ${property.bathrooms ? `<span>🚿 ${property.bathrooms}</span>` : ''}
                         ${property.area ? `<span>📐 ${property.area}m²</span>` : ''}
                     </div>
+                    ${property.tags?.length ? `
+                        <div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.5rem;">
+                            ${property.tags.slice(0, 3).map(tag => `<span style="background:var(--info);color:white;font-size:0.65rem;padding:2px 6px;border-radius:4px;">🏷️ ${tag}</span>`).join('')}
+                            ${property.tags.length > 3 ? `<span style="font-size:0.65rem;color:var(--text-muted);">+${property.tags.length - 3}</span>` : ''}
+                        </div>
+                    ` : ''}
                     ${captadorSection}
                     ${canMarkAsSold ? `<button class="btn-sold" onclick="event.stopPropagation(); Properties.openSaleModal('${property.id}')">💰 Vendido</button>` : ''}
                 </div>
@@ -673,6 +691,12 @@ const Properties = {
             document.getElementById('propertyParking').value = property.parking || '';
             document.getElementById('propertyDescription').value = property.description || '';
             document.getElementById('propertyFeatures').value = property.features?.join(', ') || '';
+            if (document.getElementById('propertyNotes')) {
+                document.getElementById('propertyNotes').value = property.notes || '';
+            }
+            if (document.getElementById('propertyTags')) {
+                document.getElementById('propertyTags').value = property.tags?.join(', ') || '';
+            }
             this.currentImages = property.images || [];
             if (document.getElementById('propertyOwner')) {
                 document.getElementById('propertyOwner').value = property.ownerId || '';
@@ -844,6 +868,8 @@ const Properties = {
             parking: parseInt(document.getElementById('propertyParking').value) || null,
             description: document.getElementById('propertyDescription').value,
             features: document.getElementById('propertyFeatures').value.split(',').map(f => f.trim()).filter(f => f),
+            tags: document.getElementById('propertyTags')?.value.split(',').map(t => t.trim()).filter(t => t) || [],
+            notes: document.getElementById('propertyNotes')?.value || null,
             images: this.currentImages,
             ownerId: document.getElementById('propertyOwner')?.value || null,
             // Captación fields
@@ -908,6 +934,13 @@ const Properties = {
                     ${property.features?.length ? `<p><strong>Características:</strong> ${property.features.join(', ')}</p>` : ''}
                 </div>
                 
+                ${property.notes ? `
+                <div style="margin-top:1rem;padding:1rem;background:var(--bg-tertiary);border-radius:var(--radius-sm);border-left:4px solid var(--warning);">
+                    <h4 style="margin:0 0 0.5rem 0;color:var(--warning);">📝 Notas Privadas</h4>
+                    <p style="margin:0;white-space:pre-wrap;color:var(--text-secondary);">${property.notes}</p>
+                </div>
+                ` : ''}
+                
                 ${property.status === 'sold' && property.saleData ? `
                 <div style="margin-top:1rem;padding:1rem;background:linear-gradient(to right, #1a1a1a, #2d2d2d);border-radius:var(--radius-sm);border-left:4px solid var(--primary);">
                     <h4 style="margin:0 0 0.75rem 0;color:var(--primary);">💰 Detalles de la Venta</h4>
@@ -942,6 +975,7 @@ const Properties = {
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="App.closeModal('detailModal')">Cerrar</button>
+                <button class="btn" onclick="Properties.shareToWhatsApp('${property.id}')" style="background-color:#25D366;color:white;" title="Compartir por WhatsApp">📱 WhatsApp</button>
                 <button class="btn btn-primary" onclick="PDFGenerator.generatePropertyReport('${property.id}')" style="background-color:#4f46e5;" title="Ver y descargar informe de gestión">👁️ Ver Informe PDF</button>
                 <button class="btn btn-warning" onclick="Properties.edit('${property.id}')">Editar</button>
                 <button class="btn btn-danger" onclick="Properties.delete('${property.id}')">Eliminar</button>
@@ -979,6 +1013,64 @@ const Properties = {
 
     formatPrice(price) {
         return new Intl.NumberFormat('es-AR').format(price);
+    },
+
+    // ===== WHATSAPP SHARE SYSTEM =====
+    shareToWhatsApp(id) {
+        const property = Storage.getProperties().find(p => p.id === id);
+        if (!property) return;
+
+        const typeLabels = { house: 'Casa', apartment: 'Departamento', land: 'Terreno', commercial: 'Comercial', office: 'Oficina' };
+        const operationLabels = { sale: 'Venta', rent: 'Alquiler', both: 'Venta/Alquiler' };
+
+        // Build message
+        let message = `🏡 *${property.title}*\n\n`;
+        message += `📍 ${property.address}\n`;
+        message += `🏷️ ${typeLabels[property.type] || property.type} en ${operationLabels[property.operation] || property.operation}\n\n`;
+
+        // Price section
+        if (property.operation === 'both') {
+            message += `💰 *Venta:* ${property.currency} ${this.formatPrice(property.salePrice || property.price)}\n`;
+            message += `🔑 *Alquiler:* ${property.currency} ${this.formatPrice(property.rentPrice)}/mes\n\n`;
+        } else {
+            message += `💰 *Precio:* ${property.currency} ${this.formatPrice(property.price)}${property.operation === 'rent' ? '/mes' : ''}\n\n`;
+        }
+
+        // Features
+        const features = [];
+        if (property.bedrooms) features.push(`🛏️ ${property.bedrooms} hab.`);
+        if (property.bathrooms) features.push(`🚿 ${property.bathrooms} baños`);
+        if (property.area) features.push(`📐 ${property.area}m²`);
+        if (property.parking) features.push(`🚗 ${property.parking} cocheras`);
+        if (features.length) message += features.join(' | ') + '\n\n';
+
+        // Description
+        if (property.description) {
+            message += `📝 ${property.description.substring(0, 200)}${property.description.length > 200 ? '...' : ''}\n\n`;
+        }
+
+        // Footer
+        message += `---\n`;
+        message += `📲 *Edgar Paniagua* | C21 Sky\n`;
+        message += `🌐 Asesor Inmobiliario`;
+
+        // Encode and open WhatsApp
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+        window.open(whatsappUrl, '_blank');
+
+        App.showToast('📱 Abriendo WhatsApp...', 'success');
+    },
+
+    // ===== FILTER SYSTEM =====
+    clearFilters() {
+        const filterIds = ['filterStatus', 'filterType', 'filterCaptacion', 'filterOperation', 'filterBedrooms', 'filterPriceRange'];
+        filterIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        this.render();
+        App.showToast('🗑️ Filtros limpiados', 'info');
     },
 
     // ===== SALE REGISTRATION SYSTEM =====

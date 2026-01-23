@@ -112,6 +112,9 @@ const App = {
         // Check for pending invitations (shows banner if any)
         Auth.showInvitationBanner();
 
+        // Check for pending/overdue followups and show notification
+        this.checkFollowupNotifications();
+
         // Proactive Legacy Check for Admin (Data Recovery)
         if (Auth.isAdmin() && Storage.getProperties().length === 0) {
             (async () => {
@@ -332,6 +335,23 @@ const App = {
                     <div class="kpi-grid" id="kpiGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;"></div>
                 </div>
             </div>
+
+            <!-- Charts Section -->
+            <div class="charts-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:1.5rem; margin-bottom:1.5rem;">
+                <div class="card" style="min-height:300px;">
+                    <div class="card-header"><h3>🥧 Distribución por Tipo</h3></div>
+                    <div class="card-body" style="position:relative;height:250px;">
+                        <canvas id="typeChart"></canvas>
+                    </div>
+                </div>
+                <div class="card" style="min-height:300px;">
+                    <div class="card-header"><h3>📊 Estado del Inventario</h3></div>
+                    <div class="card-body" style="position:relative;height:250px;">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <div class="dashboard-grid">
                 <div class="card recent-activity">
                     <div class="card-header"><h3>📝 Actividad Reciente</h3></div>
@@ -350,8 +370,8 @@ const App = {
                 <h1>Propiedades</h1>
                 <button class="btn btn-primary" id="addPropertyBtn"><span>+</span> Nueva Propiedad</button>
             </div>
-            <div class="filters-bar">
-                <div class="filter-group">
+            <div class="filters-bar" style="flex-wrap: wrap; gap: 0.5rem;">
+                <div class="filter-group" style="flex-wrap: wrap; gap: 0.5rem;">
                     <select id="filterStatus" class="filter-select">
                         <option value="">Todos los estados</option>
                         <option value="available">Disponible</option>
@@ -367,6 +387,12 @@ const App = {
                         <option value="commercial">Comercial</option>
                         <option value="office">Oficina</option>
                     </select>
+                    <select id="filterOperation" class="filter-select">
+                        <option value="">Todas las operaciones</option>
+                        <option value="sale">Venta</option>
+                        <option value="rent">Alquiler</option>
+                        <option value="both">Venta + Alquiler</option>
+                    </select>
                     <select id="filterCaptacion" class="filter-select">
                         <option value="">Todas las captaciones</option>
                         <option value="propia_exclusiva">Propia - Exclusividad</option>
@@ -375,6 +401,25 @@ const App = {
                         <option value="c21_sky">C21 Sky</option>
                         <option value="c21_captaciones">C21 Captaciones</option>
                     </select>
+                </div>
+                <div class="filter-group" style="flex-wrap: wrap; gap: 0.5rem;">
+                    <select id="filterBedrooms" class="filter-select">
+                        <option value="">Habitaciones</option>
+                        <option value="1">1+ hab</option>
+                        <option value="2">2+ hab</option>
+                        <option value="3">3+ hab</option>
+                        <option value="4">4+ hab</option>
+                        <option value="5">5+ hab</option>
+                    </select>
+                    <select id="filterPriceRange" class="filter-select">
+                        <option value="">Rango de precio</option>
+                        <option value="0-50000">Hasta $50K</option>
+                        <option value="50000-100000">$50K - $100K</option>
+                        <option value="100000-200000">$100K - $200K</option>
+                        <option value="200000-500000">$200K - $500K</option>
+                        <option value="500000-999999999">$500K+</option>
+                    </select>
+                    <button id="clearFiltersBtn" class="btn btn-sm btn-secondary" onclick="Properties.clearFilters()" title="Limpiar filtros">🗑️ Limpiar</button>
                 </div>
                 <div class="view-toggle">
                     <button class="view-btn active" data-view="grid">▦</button>
@@ -524,6 +569,15 @@ const App = {
                     
                     <div class="form-group full-width"><label>Descripción</label><textarea id="propertyDescription" rows="2" placeholder="Descripción..."></textarea></div>
                     <div class="form-group full-width"><label>Características</label><input type="text" id="propertyFeatures" placeholder="Piscina, Jardín, etc."></div>
+                    <div class="form-group full-width" style="background:var(--bg-tertiary);padding:1rem;border-radius:var(--radius-sm);margin:0.5rem 0;border-left:4px solid var(--info);">
+                        <label style="color:var(--info);font-weight:600;">🏷️ Etiquetas <small style="color:var(--text-muted);">(Separa con comas)</small></label>
+                        <input type="text" id="propertyTags" placeholder="Ej: Urgente, Oportunidad, VIP, Negociable..." style="margin-top:0.5rem;">
+                        <div id="tagPreview" style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.25rem;"></div>
+                    </div>
+                    <div class="form-group full-width" style="background:var(--bg-tertiary);padding:1rem;border-radius:var(--radius-sm);margin:0.5rem 0;border-left:4px solid var(--warning);">
+                        <label style="color:var(--warning);font-weight:600;">📝 Notas Privadas <small style="color:var(--text-muted);">(Solo visibles para ti)</small></label>
+                        <textarea id="propertyNotes" rows="3" placeholder="Notas personales, recordatorios, observaciones..." style="margin-top:0.5rem;"></textarea>
+                    </div>
                     <div class="form-group full-width"><label>Propietario (Dueño)</label><select id="propertyOwner"><option value="">Sin propietario asignado</option></select></div>
                     <div class="form-group full-width">
                         <label>Imágenes</label>
@@ -712,6 +766,50 @@ const App = {
         }
     },
 
+    checkFollowupNotifications() {
+        const followups = Storage.getFollowups();
+        const today = new Date().toISOString().split('T')[0];
+
+        // Get pending followups
+        const pending = followups.filter(f => f.status === 'pending');
+        const overdue = pending.filter(f => f.date < today);
+        const todayFollowups = pending.filter(f => f.date === today);
+        const upcoming = pending.filter(f => f.date > today && f.date <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+
+        // Update sidebar badge
+        const followupsNav = document.querySelector('.nav-item[data-section="followups"]');
+        if (followupsNav) {
+            // Remove existing badge
+            const existingBadge = followupsNav.querySelector('.nav-badge');
+            if (existingBadge) existingBadge.remove();
+
+            // Add badge if there are pending items
+            const totalPending = overdue.length + todayFollowups.length;
+            if (totalPending > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'nav-badge';
+                badge.style.cssText = 'background:var(--danger);color:white;font-size:0.7rem;padding:2px 6px;border-radius:10px;margin-left:auto;font-weight:600;';
+                badge.textContent = totalPending;
+                followupsNav.appendChild(badge);
+            }
+        }
+
+        // Show toast notification for overdue and today
+        if (overdue.length > 0) {
+            setTimeout(() => {
+                this.showToast(`⚠️ Tienes ${overdue.length} seguimiento(s) VENCIDO(S)`, 'error');
+            }, 1500);
+        } else if (todayFollowups.length > 0) {
+            setTimeout(() => {
+                this.showToast(`📅 Tienes ${todayFollowups.length} seguimiento(s) para HOY`, 'warning');
+            }, 1500);
+        } else if (upcoming.length > 0) {
+            setTimeout(() => {
+                this.showToast(`📋 ${upcoming.length} seguimiento(s) en los próximos 3 días`, 'info');
+            }, 2000);
+        }
+    },
+
     renderKPIs(properties, clients, followups) {
         const kpiGrid = document.getElementById('kpiGrid');
         if (!kpiGrid) return;
@@ -759,6 +857,83 @@ const App = {
                 <div style="font-size:0.875rem; color:var(--text-secondary);">Con Propietario</div>
             </div>
         `;
+
+        // Render Charts
+        this.renderCharts(properties);
+    },
+
+    renderCharts(properties) {
+        if (typeof Chart === 'undefined') return;
+
+        // Prepare Data for Type Chart
+        const types = {};
+        properties.forEach(p => {
+            const type = p.type;
+            types[type] = (types[type] || 0) + 1;
+        });
+
+        const typeLabelsKeys = { house: 'Casa', apartment: 'Depto', land: 'Terreno', commercial: 'Comercial', office: 'Oficina' };
+
+        // Prepare Data for Status Chart
+        const statusCounts = { available: 0, reserved: 0, sold: 0, rented: 0 };
+        properties.forEach(p => {
+            if (statusCounts[p.status] !== undefined) statusCounts[p.status]++;
+        });
+
+        // Common Chart Options
+        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.borderColor = '#374151';
+
+        // Render Type Chart
+        const typeCtx = document.getElementById('typeChart')?.getContext('2d');
+        if (typeCtx) {
+            if (this.typeChartInstance) this.typeChartInstance.destroy();
+            this.typeChartInstance = new Chart(typeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(types).map(k => typeLabelsKeys[k] || k),
+                    datasets: [{
+                        data: Object.values(types),
+                        backgroundColor: ['#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right' }
+                    }
+                }
+            });
+        }
+
+        // Render Status Chart
+        const statusCtx = document.getElementById('statusChart')?.getContext('2d');
+        if (statusCtx) {
+            if (this.statusChartInstance) this.statusChartInstance.destroy();
+            this.statusChartInstance = new Chart(statusCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Disponible', 'Reservado', 'Vendido', 'Alquilado'],
+                    datasets: [{
+                        label: 'Propiedades',
+                        data: [statusCounts.available, statusCounts.reserved, statusCounts.sold, statusCounts.rented],
+                        backgroundColor: ['#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#374151' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
     },
 
     formatNumber(num) {
@@ -819,10 +994,24 @@ const App = {
         this.lightboxImages = images;
         this.lightboxIndex = currentIndex;
 
+        const updateCounter = () => {
+            const counter = lightbox.querySelector('.lightbox-counter');
+            if (counter) counter.textContent = `${currentIndex + 1} / ${images.length}`;
+
+            // Update thumbnail indicators
+            lightbox.querySelectorAll('.thumb-indicator').forEach((thumb, i) => {
+                thumb.style.opacity = i === currentIndex ? '1' : '0.4';
+                thumb.style.border = i === currentIndex ? '2px solid var(--primary)' : '2px solid transparent';
+            });
+        };
+
         const show = (i) => {
             if (images[i]) {
                 img.src = images[i];
+                img.style.transform = 'scale(1)';
                 this.lightboxIndex = i;
+                currentIndex = i;
+                updateCounter();
             }
         };
 
@@ -836,22 +1025,63 @@ const App = {
             show(currentIndex);
         };
 
+        // Store functions globally for button access
+        this.lightboxPrev = prev;
+        this.lightboxNext = next;
+
         show(currentIndex);
         lightbox.classList.add('active');
 
-        // Update nav buttons
+        // Build enhanced nav with thumbnails
         const navDiv = lightbox.querySelector('.lightbox-nav');
-        if (navDiv && images.length > 1) {
+        if (navDiv) {
+            const thumbnails = images.length > 1 && images.length <= 8
+                ? `<div style="display:flex;gap:4px;margin-bottom:10px;">
+                    ${images.map((src, i) => `<img src="${src}" class="thumb-indicator" onclick="App.openLightbox(App.lightboxImages, ${i})" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;opacity:${i === currentIndex ? '1' : '0.4'};transition:all 0.2s;border:${i === currentIndex ? '2px solid var(--primary)' : '2px solid transparent'};">`).join('')}
+                   </div>`
+                : '';
+
             navDiv.innerHTML = `
-                <button onclick="App.lightboxPrev()" style="padding:0.5rem 1rem;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:4px;cursor:pointer;">◀ Anterior</button>
-                <span style="color:white;">${currentIndex + 1} / ${images.length}</span>
-                <button onclick="App.lightboxNext()" style="padding:0.5rem 1rem;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:4px;cursor:pointer;">Siguiente ▶</button>
+                ${thumbnails}
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <button onclick="App.lightboxPrev()" style="padding:0.75rem 1.25rem;background:rgba(255,255,255,0.15);border:none;color:white;border-radius:8px;cursor:pointer;font-size:1rem;backdrop-filter:blur(10px);transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">◀ Anterior</button>
+                    <span class="lightbox-counter" style="color:white;font-weight:600;min-width:60px;text-align:center;">${currentIndex + 1} / ${images.length}</span>
+                    <button onclick="App.lightboxNext()" style="padding:0.75rem 1.25rem;background:rgba(255,255,255,0.15);border:none;color:white;border-radius:8px;cursor:pointer;font-size:1rem;backdrop-filter:blur(10px);transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">Siguiente ▶</button>
+                </div>
+                <p style="color:rgba(255,255,255,0.5);font-size:0.75rem;margin-top:10px;">← → para navegar • Esc para cerrar • Click para zoom</p>
             `;
         }
 
-        lightbox.querySelector('.lightbox-close').onclick = () => lightbox.classList.remove('active');
+        // Keyboard navigation
+        const keyHandler = (e) => {
+            if (!lightbox.classList.contains('active')) return;
+            if (e.key === 'ArrowLeft') prev();
+            if (e.key === 'ArrowRight') next();
+            if (e.key === 'Escape') {
+                lightbox.classList.remove('active');
+                document.removeEventListener('keydown', keyHandler);
+            }
+        };
+        document.addEventListener('keydown', keyHandler);
+
+        // Click to toggle zoom
+        img.onclick = () => {
+            const isZoomed = img.style.transform === 'scale(1.5)';
+            img.style.transform = isZoomed ? 'scale(1)' : 'scale(1.5)';
+            img.style.cursor = isZoomed ? 'zoom-in' : 'zoom-out';
+        };
+        img.style.cursor = 'zoom-in';
+        img.style.transition = 'transform 0.3s ease';
+
+        lightbox.querySelector('.lightbox-close').onclick = () => {
+            lightbox.classList.remove('active');
+            document.removeEventListener('keydown', keyHandler);
+        };
         lightbox.onclick = (e) => {
-            if (e.target === lightbox) lightbox.classList.remove('active');
+            if (e.target === lightbox) {
+                lightbox.classList.remove('active');
+                document.removeEventListener('keydown', keyHandler);
+            }
         };
     },
 

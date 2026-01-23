@@ -85,6 +85,8 @@ const Followups = {
     renderCalendar() {
         const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
         const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const typeIcons = { visit: '🏠', call: '📞', meeting: '🤝', showing: '👁️', negotiation: '💰', other: '📌' };
+        const typeColors = { visit: '#10b981', call: '#3b82f6', meeting: '#f59e0b', showing: '#8b5cf6', negotiation: '#ef4444', other: '#6b7280' };
 
         document.getElementById('calendarMonth').textContent = `${months[this.currentMonth]} ${this.currentYear}`;
 
@@ -93,7 +95,13 @@ const Followups = {
         const today = new Date();
 
         const followups = Storage.getFollowups();
-        const datesWithEvents = new Set(followups.map(f => f.date));
+
+        // Group followups by date
+        const followupsByDate = {};
+        followups.forEach(f => {
+            if (!followupsByDate[f.date]) followupsByDate[f.date] = [];
+            followupsByDate[f.date].push(f);
+        });
 
         let html = days.map(d => `<div class="calendar-day calendar-day-header">${d}</div>`).join('');
 
@@ -106,20 +114,92 @@ const Followups = {
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const isToday = today.getDate() === day && today.getMonth() === this.currentMonth && today.getFullYear() === this.currentYear;
-            const hasEvent = datesWithEvents.has(dateStr);
+            const dayFollowups = followupsByDate[dateStr] || [];
+            const hasEvent = dayFollowups.length > 0;
 
-            html += `<div class="calendar-day${isToday ? ' today' : ''}${hasEvent ? ' has-event' : ''}" data-date="${dateStr}">${day}</div>`;
+            // Build event indicators
+            let eventIndicators = '';
+            if (hasEvent) {
+                const pendingCount = dayFollowups.filter(f => f.status === 'pending').length;
+                const completedCount = dayFollowups.filter(f => f.status === 'completed').length;
+
+                // Show colored dots for each event (max 3)
+                const dots = dayFollowups.slice(0, 3).map(f =>
+                    `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${typeColors[f.type] || '#6b7280'};margin:0 1px;" title="${typeIcons[f.type] || '📌'} ${f.title}"></span>`
+                ).join('');
+
+                eventIndicators = `
+                    <div style="display:flex;justify-content:center;gap:1px;margin-top:2px;">${dots}</div>
+                    ${dayFollowups.length > 3 ? `<div style="font-size:0.6rem;color:var(--text-muted);">+${dayFollowups.length - 3}</div>` : ''}
+                    ${pendingCount > 0 ? `<div style="font-size:0.65rem;color:var(--warning);font-weight:600;">${pendingCount} pend.</div>` : ''}
+                `;
+            }
+
+            html += `
+                <div class="calendar-day${isToday ? ' today' : ''}${hasEvent ? ' has-event' : ''}" data-date="${dateStr}" style="cursor:pointer;position:relative;">
+                    <span style="font-weight:${isToday ? '700' : '500'};">${day}</span>
+                    ${eventIndicators}
+                </div>
+            `;
         }
 
         this.calendarGrid.innerHTML = html;
 
-        // Click on day to add followup
+        // Click on day to show day's events or add new
         this.calendarGrid.querySelectorAll('.calendar-day:not(.empty):not(.calendar-day-header)').forEach(day => {
             day.addEventListener('click', () => {
-                document.getElementById('followupDate').value = day.dataset.date;
-                this.openModal();
+                const dateStr = day.dataset.date;
+                const dayEvents = followupsByDate[dateStr] || [];
+
+                if (dayEvents.length > 0) {
+                    // Show day's followups
+                    this.showDayFollowups(dateStr, dayEvents);
+                } else {
+                    // Open new followup modal with date pre-filled
+                    document.getElementById('followupDate').value = dateStr;
+                    this.openModal();
+                }
             });
         });
+    },
+
+    showDayFollowups(dateStr, followups) {
+        const typeIcons = { visit: '🏠', call: '📞', meeting: '🤝', showing: '👁️', negotiation: '💰', other: '📌' };
+        const statusLabels = { pending: '⏳ Pendiente', completed: '✅ Completado', cancelled: '❌ Cancelado' };
+
+        const formattedDate = new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        const modal = document.getElementById('detailModal');
+        const content = modal.querySelector('.modal-content');
+
+        content.innerHTML = `
+            <div class="modal-header">
+                <h2>📅 ${formattedDate}</h2>
+                <button class="modal-close" onclick="App.closeModal('detailModal')">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-muted);margin-bottom:1rem;">${followups.length} seguimiento(s) este día</p>
+                ${followups.map(f => `
+                    <div style="background:var(--bg-tertiary);padding:1rem;border-radius:var(--radius-sm);margin-bottom:0.75rem;border-left:4px solid ${f.status === 'pending' ? 'var(--warning)' : f.status === 'completed' ? 'var(--success)' : 'var(--danger)'};" onclick="Followups.showDetail('${f.id}')" style="cursor:pointer;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                            <div>
+                                <strong>${typeIcons[f.type] || '📌'} ${f.title}</strong>
+                                <p style="margin:0.25rem 0 0 0;font-size:0.85rem;color:var(--text-secondary);">
+                                    ${f.time ? `🕐 ${f.time}` : ''} ${statusLabels[f.status]}
+                                </p>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); Followups.showDetail('${f.id}')">Ver</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('detailModal')">Cerrar</button>
+                <button class="btn btn-primary" onclick="App.closeModal('detailModal'); document.getElementById('followupDate').value='${dateStr}'; Followups.openModal();">+ Nuevo Seguimiento</button>
+            </div>
+        `;
+
+        modal.classList.add('active');
     },
 
     changeMonth(delta) {
