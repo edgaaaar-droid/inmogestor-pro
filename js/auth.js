@@ -502,6 +502,72 @@ const Auth = {
         }
     },
 
+    // Vincular manualmente un usuario existente como captador (Admin Only)
+    async linkUserAsCaptador(targetEmail) {
+        if (!this.isAdmin()) return;
+
+        targetEmail = targetEmail.trim().toLowerCase();
+        if (!targetEmail) {
+            App.showToast('Ingresa un email', 'error');
+            return;
+        }
+
+        try {
+            App.showToast('Buscando usuario...', 'info');
+
+            // 1. Find user by email
+            const usersSnapshot = await db.collection('users').where('email', '==', targetEmail).get();
+
+            if (usersSnapshot.empty) {
+                App.showToast('Usuario no encontrado. Debe registrarse primero.', 'error');
+                return;
+            }
+
+            const targetuserDoc = usersSnapshot.docs[0];
+            const targetUserId = targetuserDoc.id;
+            const targetUserData = targetuserDoc.data();
+
+            // 2. Update target user profile
+            await db.collection('users').doc(targetUserId).update({
+                parentUserId: this.currentUser.uid,
+                role: 'captador'
+            });
+
+            // 3. Add to my subUsers list
+            const myUserRef = db.collection('users').doc(this.currentUser.uid);
+            const myUserDoc = await myUserRef.get();
+
+            if (myUserDoc.exists) {
+                const subUsers = myUserDoc.data().subUsers || [];
+
+                // Check if already exists to avoid duplicates
+                const exists = subUsers.find(u => u.email === targetEmail);
+                if (!exists) {
+                    subUsers.push({
+                        email: targetEmail,
+                        subUserId: targetUserId,
+                        role: 'captador',
+                        invitedAt: new Date().toISOString(),
+                        acceptedAt: new Date().toISOString(),
+                        status: 'active'
+                    });
+                    await myUserRef.update({ subUsers });
+                }
+            }
+
+            App.showToast(`✅ ${targetUserData.displayName || targetEmail} ahora es tu captador`, 'success');
+
+            // Reload admin panel if open
+            if (document.getElementById('adminModal').classList.contains('active')) {
+                this.showAdminPanel();
+            }
+
+        } catch (error) {
+            console.error('Error linking user:', error);
+            App.showToast('Error al vincular usuario', 'error');
+        }
+    },
+
     // Show admin panel (if user is admin)
     async showAdminPanel() {
         if (!this.isAdmin()) {
@@ -549,6 +615,22 @@ const Auth = {
                 </div>
 
                 <!-- Admin Actions -->
+                <div style="background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; color: white;">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <strong style="font-size: 1rem;">🔗 Vincular Captador Manualmente</strong>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">Si alguien se registró sin el link, agrégalo aquí por su email.</div>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <input type="email" id="manualLinkEmail" placeholder="Email del usuario (ej: fiopani@icloud.com)" 
+                                style="flex: 1; padding: 0.5rem; border-radius: 6px; border: none; color: black;">
+                            <button class="btn" style="background: white; color: #2563eb; font-weight: bold;" 
+                                onclick="Auth.linkUserAsCaptador(document.getElementById('manualLinkEmail').value)">
+                                Vincular
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danger Zone -->
                 <div style="background: linear-gradient(135deg, #ef4444, #b91c1c); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                         <div>

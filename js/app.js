@@ -1,60 +1,114 @@
 // Main App Controller
 
 // Global function to force app update (clears cache and reloads)
+// Global function to force app update (clears cache and reloads)
 async function forceAppUpdate() {
+    if (!confirm('¿Descargar la última versión ahora?')) return;
+
     try {
-        // Show updating message
-        alert('🔄 Actualizando app... Esto tomará unos segundos.');
+        const btn = document.querySelector('button[onclick="forceAppUpdate()"]');
+        if (btn) btn.textContent = '⏳ Descargando...';
 
-        // Unregister all service workers
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-            await registration.unregister();
+        // 1. Unregister Service Workers
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+                await registration.unregister();
+                console.log('SW Unregistered');
+            }
         }
 
-        // Clear all caches
-        const cacheNames = await caches.keys();
-        for (const cacheName of cacheNames) {
-            await caches.delete(cacheName);
+        // 2. Clear Cache Storage
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            for (const cacheName of cacheNames) {
+                await caches.delete(cacheName);
+                console.log('Cache Deleted:', cacheName);
+            }
         }
 
-        // Force hard reload
-        window.location.reload(true);
+        // 3. Reload with cache busting
+        console.log('Reloading...');
+        window.location.href = window.location.pathname + '?v=' + Date.now();
+
     } catch (error) {
-        console.error('Error updating app:', error);
-        // Fallback: just reload
+        console.error('Update error:', error);
         window.location.reload(true);
     }
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 48;
+const APP_VERSION = 50;
 
-// Auto-check for updates on page load
-(async function checkForUpdates() {
+// Strict Update Check and Enforcement
+(async function enforceUpdate() {
     try {
-        // Fetch sw.js with cache bypass to get server version
-        const response = await fetch('./sw.js?t=' + Date.now());
-        const text = await response.text();
+        console.log('🔍 Checking for updates...');
+        // 1. Fetch strict version.json with cache busting
+        const response = await fetch('./version.json?t=' + Date.now(), { cache: "no-store" });
+        if (!response.ok) return;
 
-        // Extract version number from CACHE_NAME
-        const match = text.match(/CACHE_NAME\s*=\s*['"]inmogestor-pro-v(\d+)['"]/);
-        if (match) {
-            const serverVersion = parseInt(match[1]);
-            console.log(`📱 Version: local=v${APP_VERSION}, server=v${serverVersion}`);
+        const data = await response.json();
+        const serverVersion = parseInt(data.version);
 
-            if (serverVersion > APP_VERSION) {
-                console.log('🔄 Nueva versión disponible! Actualizando...');
-                // Auto-update silently
-                const regs = await navigator.serviceWorker.getRegistrations();
-                for (const reg of regs) await reg.unregister();
-                const cacheKeys = await caches.keys();
-                for (const key of cacheKeys) await caches.delete(key);
-                window.location.reload(true);
-            }
+        console.log(`📱 Version Check: Local=v${APP_VERSION} vs Server=v${serverVersion}`);
+
+        if (serverVersion > APP_VERSION) {
+            console.warn('⚠️ OLD VERSION DETECTED. BLOCKING ACCESS.');
+
+            // 2. Create Blocking Overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'updateRequiredOverlay';
+            overlay.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.95); z-index: 100000;
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                color: white; font-family: 'Inter', sans-serif; text-align: center;
+                padding: 2rem;
+            `;
+
+            overlay.innerHTML = `
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🚀</div>
+                <h1 style="color: #f59e0b; margin-bottom: 0.5rem;">Actualización Requerida</h1>
+                <p style="color: #9ca3af; margin-bottom: 2rem; max-width: 300px;">
+                    Hay una nueva versión disponible (v${serverVersion}).<br>
+                    Debes actualizar para continuar.
+                </p>
+                <div style="background: #1f2937; padding: 1rem; border-radius: 12px; border: 1px solid #374151; margin-bottom: 2rem; width: 100%; max-width: 300px;">
+                   <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.8rem; color:#6b7280;">
+                      <span>Tu versión</span>
+                      <span style="color:#ef4444">v${APP_VERSION}</span>
+                   </div>
+                   <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#6b7280;">
+                      <span>Nueva versión</span>
+                      <span style="color:#10b981; font-weight:bold;">v${serverVersion}</span>
+                   </div>
+                </div>
+                <button onclick="forceAppUpdate()" style="
+                    background: #f59e0b; color: black; border: none;
+                    padding: 1rem 2rem; border-radius: 50px;
+                    font-size: 1.1rem; font-weight: 700;
+                    cursor: pointer; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+                    transition: transform 0.2s;
+                ">
+                    🔄 ACTUALIZAR AHORA
+                </button>
+                <p style="margin-top: 1.5rem; font-size: 0.8rem; color: #4b5563;">
+                    Si no funciona, cierra y abre la app.
+                </p>
+            `;
+
+            // 3. Inject and Block
+            document.body.appendChild(overlay);
+
+            // Stop execution of other scripts if possible? 
+            // We can't easily stop them, but the overlay blocks interaction.
+            // Also hide the app container to be sure
+            const app = document.querySelector('.app-container');
+            if (app) app.style.display = 'none';
         }
     } catch (e) {
-        console.log('Version check skipped:', e.message);
+        console.error('Update check failed:', e);
     }
 })();
 
