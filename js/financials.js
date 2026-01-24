@@ -118,14 +118,20 @@ const Financials = {
         const sales = Storage.getSales(); // Assuming sales logic exists or properties marked as sold
 
         // Calculate Total Income (Commissions from Sold Properties)
-        // Check properties marked as 'vendida' for income if sales module isn't fully populated yet
-        const soldProperties = Storage.getProperties().filter(p => p.status === 'vendida');
+        const soldProperties = Storage.getProperties().filter(p => p.status === 'sold');
 
-        // Sum commission from properties (assuming property.commissionAmount exists, fallback to price * 0.05 * split)
-        // For accurate tracking, we should use the 'Sales' module if implemented, or derive from properties.
+        // Sum commission from properties
         let totalIncome = soldProperties.reduce((sum, p) => {
-            // Try to find explicit commission amount, otherwise estimate (e.g. 5% of price * 50% agent split)
-            const commission = p.commissionAmount ? parseFloat(p.commissionAmount) : (p.price * 0.05 * 0.5);
+            // Check for explicit saleData.myEarnings first (structure from properties.js)
+            let commission = 0;
+            if (p.saleData && p.saleData.myEarnings) {
+                commission = parseFloat(p.saleData.myEarnings);
+            } else if (p.commissionAmount) {
+                commission = parseFloat(p.commissionAmount);
+            } else {
+                // Fallback estimate
+                commission = (p.price || 0) * 0.05 * 0.5;
+            }
             return sum + (commission || 0);
         }, 0);
 
