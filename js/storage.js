@@ -473,19 +473,50 @@ const Storage = {
             });
     },
 
-    // Apply changes from remote device
+    // Apply changes from remote device with SMART MERGE
     applyRemoteChanges(data) {
         this.isRemoteUpdate = true;
+        let changesCount = 0;
 
         try {
-            // Update localStorage with cloud data
-            if (data.properties) this.set(this.KEYS.PROPERTIES, data.properties);
-            if (data.clients) this.set(this.KEYS.CLIENTS, data.clients);
-            if (data.followups) this.set(this.KEYS.FOLLOWUPS, data.followups);
-            if (data.colleagues) this.set(this.KEYS.COLLEAGUES, data.colleagues);
-            if (data.sales) this.set(this.KEYS.SALES, data.sales);
-            if (data.signs) this.set(this.KEYS.SIGNS, data.signs);
-            if (data.settings) this.set(this.KEYS.SETTINGS, data.settings);
+            // Helper to merge local and cloud arrays
+            const mergeCollections = (local, cloud) => {
+                if (!cloud) return local;
+                const merged = [...local];
+
+                cloud.forEach(cloudItem => {
+                    const localIndex = merged.findIndex(l => l.id === cloudItem.id);
+
+                    if (localIndex === -1) {
+                        // New item from cloud -> Add it
+                        merged.push(cloudItem);
+                    } else {
+                        // Conflict: Check timestamps
+                        const localItem = merged[localIndex];
+                        const localDate = new Date(localItem.updatedAt || localItem.createdAt || 0);
+                        const cloudDate = new Date(cloudItem.updatedAt || cloudItem.createdAt || 0);
+
+                        // If cloud is newer, update. If local is newer, keep local (it will be pushed later)
+                        if (cloudDate > localDate) {
+                            merged[localIndex] = cloudItem;
+                        }
+                    }
+                });
+                return merged;
+            };
+
+            // Merge each collection
+            if (data.properties) this.set(this.KEYS.PROPERTIES, mergeCollections(this.getProperties(), data.properties));
+            if (data.clients) this.set(this.KEYS.CLIENTS, mergeCollections(this.getClients(), data.clients));
+            if (data.followups) this.set(this.KEYS.FOLLOWUPS, mergeCollections(this.getFollowups(), data.followups));
+            if (data.colleagues) this.set(this.KEYS.COLLEAGUES, mergeCollections(this.getColleagues(), data.colleagues));
+            if (data.sales) this.set(this.KEYS.SALES, mergeCollections(this.getSales(), data.sales));
+            if (data.signs) {
+                const mergedSigns = mergeCollections(this.getSigns(), data.signs);
+                this.set(this.KEYS.SIGNS, mergedSigns);
+                changesCount += (mergedSigns.length - this.getSigns().length); // track drift
+            }
+            if (data.settings) this.set(this.KEYS.SETTINGS, { ...this.getSettings(), ...data.settings });
 
             // Store last sync time to avoid re-applying
             localStorage.setItem('inmogestor_lastSync', data.lastSync);
@@ -495,11 +526,15 @@ const Storage = {
 
             // Show notification to user
             if (typeof App !== 'undefined' && App.showToast) {
-                App.showToast('🔄 Datos actualizados desde otro dispositivo', 'info');
+                App.showToast('🔄 Datos sincronizados y combinados', 'info');
             }
 
-            console.log('✓ Datos remotos aplicados');
+            console.log('✓ Datos remotos fusionados correctamente');
             this.updateSyncStatus('synced');
+
+            // If we have local changes that were "newer" than cloud in the merge, we should verify consistency?
+            // For now, next syncToCloud will resolve it.
+
         } catch (e) {
             console.error('Error aplicando cambios remotos:', e);
         } finally {

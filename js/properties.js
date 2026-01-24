@@ -158,7 +158,7 @@ const Properties = {
             btnGroup.innerHTML = `
                  <button class="btn btn-secondary btn-sm" onclick="Properties.openEarningsReport()">📊 Reporte</button>
                  <button class="btn btn-secondary btn-sm" onclick="Properties.exportToExcel()">📤 Excel (Pro)</button>
-                 <button class="btn btn-secondary btn-sm" onclick="Properties.triggerImport()">📥 Importar Masivo</button>
+                 <button class="btn btn-secondary btn-sm" onclick="App.triggerManualSync()" style="border:1px solid #f59e0b; color:#f59e0b;">🔄 Recuperar Datos</button>
             `;
         }
 

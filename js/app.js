@@ -37,7 +37,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 69;
+const APP_VERSION = 70;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
@@ -1405,6 +1405,13 @@ const App = {
         if (modal) modal.classList.remove('active');
         // Clear hash if it was a route-based modal (optional but good practice)
         if (window.location.hash === '#detail') window.history.back();
+    },
+
+    // ===== DATA RECOVERY =====
+    triggerManualSync() {
+        if (confirm('¿Intentar recuperar datos de la nube? Esto combinará tus datos actuales con la copia de seguridad.')) {
+            Storage.manualSync();
+        }
     },
 
     // ===== CAPTADORES MANAGEMENT PANEL =====
