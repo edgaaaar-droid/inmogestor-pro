@@ -1,5 +1,5 @@
 // Service Worker for InmoGestor Pro
-const CACHE_NAME = 'inmogestor-pro-v61';
+const CACHE_NAME = 'inmogestor-pro-v62';
 const urlsToCache = [
     './',
     './index.html?v=60',
@@ -31,6 +31,7 @@ self.addEventListener('install', event => {
 });
 
 // Activate event - Clean old caches
+// Activate event - Clean old caches
 self.addEventListener('activate', event => {
     // Take control of all clients immediately
     event.waitUntil(clients.claim());
@@ -39,9 +40,9 @@ self.addEventListener('activate', event => {
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
-                    }
+                    // Nuclear Option: Delete ALL caches to force fresh start
+                    console.log('Deleting cache:', cacheName);
+                    return caches.delete(cacheName);
                 })
             );
         })
