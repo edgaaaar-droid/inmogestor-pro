@@ -814,8 +814,27 @@ const Signs = {
             </div>
             <div class="modal-body">
                 ${sign.photos?.length ? `
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-                        ${sign.photos.map(p => `<img src="${p}" style="width: 150px; height: 150px; object-fit: cover; border-radius: 8px; cursor: pointer;" onclick="App.openLightbox('${p}')">`).join('')}
+                    <div style="margin-bottom: 1rem;">
+                        <strong style="display: block; margin-bottom: 0.5rem;">📸 Fotos</strong>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            ${sign.photos.map(p => `<img src="${p}" style="width: 120px; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer;" onclick="App.openLightbox('${p}')">`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${sign.videos?.length ? `
+                    <div style="margin-bottom: 1.5rem;">
+                        <strong style="display: block; margin-bottom: 0.5rem;">🎬 Videos del Inmueble</strong>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            ${sign.videos.map((v, idx) => `
+                                <div style="position: relative; width: 120px; height: 120px; border-radius: 8px; overflow: hidden; cursor: pointer; background: #000;" onclick="Signs.playDetailVideo('${sign.id}', ${idx})">
+                                    <video src="${typeof v === 'object' ? v.data : v}" style="width: 100%; height: 100%; object-fit: cover;" muted></video>
+                                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3);">
+                                        <span style="font-size: 2rem; color: white;">▶</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 ` : ''}
                 
@@ -876,6 +895,28 @@ const Signs = {
                 L.marker([sign.lat, sign.lng]).addTo(detailMap);
             }, 100);
         }
+    },
+
+    playDetailVideo(signId, videoIndex) {
+        const sign = Storage.getSigns().find(s => s.id === signId);
+        if (!sign || !sign.videos || !sign.videos[videoIndex]) return;
+
+        const video = sign.videos[videoIndex];
+        const videoSrc = typeof video === 'object' ? video.data : video;
+
+        // Create fullscreen video player overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'video-player-overlay';
+        overlay.innerHTML = `
+            <div class="video-player-container">
+                <button class="video-player-close" onclick="this.closest('.video-player-overlay').remove()">✕</button>
+                <video src="${videoSrc}" controls autoplay style="max-width: 100%; max-height: 80vh; border-radius: 12px;"></video>
+            </div>
+        `;
+        overlay.onclick = (e) => {
+            if (e.target === overlay) overlay.remove();
+        };
+        document.body.appendChild(overlay);
     },
 
     addCustomField(key = '', value = '') {
@@ -966,7 +1007,8 @@ const Signs = {
         address: '',
         lat: null,
         lng: null,
-        photos: []
+        photos: [],
+        videos: []
     },
     quickMapInstance: null,
     recognition: null,
@@ -980,7 +1022,8 @@ const Signs = {
             address: '',
             lat: null,
             lng: null,
-            photos: []
+            photos: [],
+            videos: []
         };
         this.quickMapInstance = null;
 
@@ -1007,14 +1050,33 @@ const Signs = {
                         </button>
                     </div>
 
-                    <!-- Photo Capture -->
-                    <div class="quick-photo-section">
-                        <input type="file" id="quickCameraInput" accept="image/*" capture="environment" hidden>
-                        <div id="quickPhotoPreview" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; min-height: 80px;">
-                            <div class="quick-add-photo-btn" onclick="document.getElementById('quickCameraInput').click()" style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); border: 2px dashed rgba(255,255,255,0.3); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; flex-shrink: 0;">
-                                📷
+                    <!-- Photo & Video Capture -->
+                    <div class="quick-media-section">
+                        <input type="file" id="quickCameraInput" accept="image/*" capture="environment" style="display:none">
+                        <input type="file" id="quickVideoInput" accept="video/*" capture="environment" style="display:none">
+                        
+                        <!-- Media Buttons Row -->
+                        <div class="quick-media-buttons">
+                            <div class="quick-add-photo-btn" onclick="document.getElementById('quickCameraInput').click()">
+                                <span style="font-size: 2rem;">📷</span>
+                                <span style="font-size: 0.75rem; font-weight: 600;">FOTO</span>
                             </div>
-                            <!-- Photos will appear here -->
+                            <div class="quick-add-video-btn" onclick="document.getElementById('quickVideoInput').click()">
+                                <span style="font-size: 2rem;">🎥</span>
+                                <span style="font-size: 0.75rem; font-weight: 600;">VIDEO</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Photos Preview -->
+                        <div id="quickPhotoPreview" class="quick-media-preview" style="display: none;">
+                            <div class="quick-media-label">📸 Fotos</div>
+                            <div class="quick-media-items"></div>
+                        </div>
+                        
+                        <!-- Videos Preview -->
+                        <div id="quickVideoPreview" class="quick-media-preview" style="display: none;">
+                            <div class="quick-media-label">🎬 Videos</div>
+                            <div class="quick-media-items"></div>
                         </div>
                     </div>
 
@@ -1067,6 +1129,9 @@ const Signs = {
 
         // Bind camera event
         document.getElementById('quickCameraInput').addEventListener('change', (e) => this.handleQuickPhoto(e));
+
+        // Bind video event
+        document.getElementById('quickVideoInput').addEventListener('change', (e) => this.handleQuickVideo(e));
 
         // Auto-detect GPS immediately
         this.autoDetectQuickGPS();
@@ -1141,23 +1206,28 @@ const Signs = {
         const container = document.getElementById('quickPhotoPreview');
         if (!container) return;
 
-        // Keep the add button
-        const addBtn = container.querySelector('.quick-add-photo-btn');
+        const itemsContainer = container.querySelector('.quick-media-items');
+        if (!itemsContainer) return;
 
-        // Clear everything after the button
-        while (addBtn.nextSibling) {
-            addBtn.nextSibling.remove();
+        // Clear items
+        itemsContainer.innerHTML = '';
+
+        if (this.quickModeData.photos.length === 0) {
+            container.style.display = 'none';
+            return;
         }
+
+        container.style.display = 'block';
 
         // Append photos
         this.quickModeData.photos.forEach((photo, idx) => {
             const div = document.createElement('div');
-            div.style.cssText = 'position: relative; width: 80px; height: 80px; flex-shrink: 0;';
+            div.className = 'quick-media-item';
             div.innerHTML = `
-                <img src="${photo}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);">
-                <button onclick="Signs.removeQuickPhoto(${idx})" style="position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: #ef4444; border-radius: 50%; border: none; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer;">×</button>
+                <img src="${photo}" alt="Foto ${idx + 1}">
+                <button class="quick-media-remove" onclick="Signs.removeQuickPhoto(${idx})">×</button>
             `;
-            container.appendChild(div);
+            itemsContainer.appendChild(div);
         });
     },
 
@@ -1165,6 +1235,115 @@ const Signs = {
         this.quickModeData.photos.splice(index, 1);
         this.renderQuickPhotos();
     },
+
+    async handleQuickVideo(e) {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        const btn = document.querySelector('.quick-add-video-btn');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<span style="font-size: 2rem;">⏳</span><span style="font-size: 0.75rem; font-weight: 600;">...</span>';
+
+        let addedCount = 0;
+
+        try {
+            for (const file of files) {
+                if (file.type.startsWith('video/')) {
+                    // Check file size (limit to 5MB to avoid storage issues)
+                    if (file.size > 5 * 1024 * 1024) {
+                        App.showToast('⚠️ Video muy grande (máx 5MB). Intente uno más corto.', 'warning');
+                        continue;
+                    }
+
+                    const base64 = await this.processVideo(file);
+                    if (base64) {
+                        this.quickModeData.videos.push({
+                            data: base64,
+                            type: file.type,
+                            size: file.size,
+                            name: file.name
+                        });
+                        addedCount++;
+                    }
+                }
+            }
+
+            this.renderQuickVideos();
+            if (addedCount > 0) {
+                App.showToast(`🎬 ${addedCount} video(s) agregado(s)`, 'success');
+            }
+        } catch (err) {
+            console.error('Video error:', err);
+            App.showToast('Error procesando video', 'error');
+        } finally {
+            btn.innerHTML = originalContent;
+            e.target.value = ''; // Reset input
+        }
+    },
+
+    async processVideo(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e);
+            reader.readAsDataURL(file);
+        });
+    },
+
+    renderQuickVideos() {
+        const container = document.getElementById('quickVideoPreview');
+        if (!container) return;
+
+        const itemsContainer = container.querySelector('.quick-media-items');
+        if (!itemsContainer) return;
+
+        // Clear items
+        itemsContainer.innerHTML = '';
+
+        if (this.quickModeData.videos.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+
+        // Append videos
+        this.quickModeData.videos.forEach((video, idx) => {
+            const div = document.createElement('div');
+            div.className = 'quick-media-item quick-video-item';
+            div.innerHTML = `
+                <video src="${video.data}" muted></video>
+                <div class="quick-video-play" onclick="Signs.playQuickVideo(${idx})">▶</div>
+                <button class="quick-media-remove" onclick="Signs.removeQuickVideo(${idx})">×</button>
+            `;
+            itemsContainer.appendChild(div);
+        });
+    },
+
+    removeQuickVideo(index) {
+        this.quickModeData.videos.splice(index, 1);
+        this.renderQuickVideos();
+    },
+
+    playQuickVideo(index) {
+        const video = this.quickModeData.videos[index];
+        if (!video) return;
+
+        // Create fullscreen video player overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'video-player-overlay';
+        overlay.innerHTML = `
+            <div class="video-player-container">
+                <button class="video-player-close" onclick="this.closest('.video-player-overlay').remove()">✕</button>
+                <video src="${video.data}" controls autoplay style="max-width: 100%; max-height: 80vh; border-radius: 12px;"></video>
+            </div>
+        `;
+        overlay.onclick = (e) => {
+            if (e.target === overlay) overlay.remove();
+        };
+        document.body.appendChild(overlay);
+    },
+
 
     async scanQuickPhoneOCR(file) {
         if (typeof Tesseract === 'undefined') return;
@@ -1462,6 +1641,7 @@ const Signs = {
             lat: parseFloat(document.getElementById('quickLat').value) || null,
             lng: parseFloat(document.getElementById('quickLng').value) || null,
             photos: this.quickModeData.photos,
+            videos: this.quickModeData.videos,
             contacted: false,
             createdAt: new Date().toISOString(),
             quickCapture: true
@@ -1479,7 +1659,11 @@ const Signs = {
                 this.render();
             }
         } else {
-            Storage.saveSign(sign);
+            const result = Storage.saveSign(sign);
+            if (!result) {
+                App.showToast('❌ Error: Memoria llena o video muy grande.', 'error');
+                return;
+            }
             this.closeQuickMode();
             this.render();
             App.showToast('⚡ Cartel guardado rápidamente!', 'success');

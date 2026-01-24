@@ -31,10 +31,16 @@ const Storage = {
 
     set(key, value) {
         try {
-            localStorage.setItem(key, JSON.stringify(value));
+            const stringValue = JSON.stringify(value);
+            localStorage.setItem(key, stringValue);
             return true;
         } catch (e) {
             console.error('Storage set error:', e);
+            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                if (typeof App !== 'undefined' && App.showToast) {
+                    App.showToast('⚠️ Memoria llena. No se pueden guardar más datos.', 'error');
+                }
+            }
             return false;
         }
     },
@@ -345,7 +351,13 @@ const Storage = {
             sign.createdAt = new Date().toISOString();
             signs.push(sign);
         }
-        this.set(this.KEYS.SIGNS, signs);
+
+        const success = this.set(this.KEYS.SIGNS, signs);
+        if (!success) {
+            console.error('Failed to save signs to storage');
+            return false;
+        }
+
         this.addActivity('sign', sign.id ? 'updated' : 'created', `Cartel ${sign.type}: ${sign.phone || 'Sin teléfono'}`);
         this.triggerCloudSync();
         return sign;

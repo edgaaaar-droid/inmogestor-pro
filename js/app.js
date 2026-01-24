@@ -38,14 +38,21 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 51;
+const APP_VERSION = 53;
 
 // Strict Update Check and Enforcement
-(async function enforceUpdate() {
+async function checkForUpdates() {
     try {
         console.log('🔍 Checking for updates...');
-        // 1. Fetch strict version.json with cache busting
-        const response = await fetch('./version.json?t=' + Date.now(), { cache: "no-store" });
+        // 1. Fetch strict version.json with cache busting and no-cache headers
+        const response = await fetch('./version.json?t=' + Date.now(), {
+            cache: "no-store",
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        });
         if (!response.ok) return;
 
         const data = await response.json();
@@ -55,6 +62,8 @@ const APP_VERSION = 51;
 
         if (serverVersion > APP_VERSION) {
             console.warn('⚠️ OLD VERSION DETECTED. BLOCKING ACCESS.');
+
+            if (document.getElementById('updateRequiredOverlay')) return;
 
             // 2. Create Blocking Overlay
             const overlay = document.createElement('div');
@@ -110,7 +119,13 @@ const APP_VERSION = 51;
     } catch (e) {
         console.error('Update check failed:', e);
     }
-})();
+}
+
+// Run immediately
+checkForUpdates();
+
+// And check every 30 seconds
+setInterval(checkForUpdates, 30000);
 
 const App = {
     currentSection: 'dashboard',
@@ -138,6 +153,10 @@ const App = {
 
         // Set current user in storage
         Storage.setCurrentUser(user.uid);
+
+        // Update stored version and visual indicator
+        const versionEl = document.getElementById('appVersion');
+        if (versionEl) versionEl.textContent = 'v' + APP_VERSION;
 
         // Continue normal initialization
         this.bindEvents();

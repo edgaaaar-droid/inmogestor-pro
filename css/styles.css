@@ -568,8 +568,13 @@ button[title="Cerrar Sesión"]:hover {
     opacity: 1;
 }
 
-.carousel-prev { left: 8px; }
-.carousel-next { right: 8px; }
+.carousel-prev {
+    left: 8px;
+}
+
+.carousel-next {
+    right: 8px;
+}
 
 .carousel-prev:hover,
 .carousel-next:hover {
@@ -2104,4 +2109,178 @@ body.is-captador .app-container,
 body.is-captador .sidebar,
 body.is-captador .main-content {
     display: none !important;
+}
+
+/* ===== QUICK MEDIA CAPTURE (Photos & Videos) ===== */
+.quick-media-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.quick-media-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+.quick-add-photo-btn,
+.quick-add-video-btn {
+    flex: 1;
+    max-width: 150px;
+    height: 100px;
+    background: var(--bg-tertiary);
+    border: 2px dashed var(--border-color);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: var(--transition);
+    color: var(--text-secondary);
+}
+
+.quick-add-photo-btn:hover,
+.quick-add-video-btn:hover {
+    border-color: var(--primary);
+    background: rgba(190, 159, 86, 0.1);
+    color: var(--primary);
+}
+
+.quick-add-photo-btn:active,
+.quick-add-video-btn:active {
+    transform: scale(0.98);
+}
+
+.quick-add-video-btn {
+    border-color: #ef4444;
+}
+
+.quick-add-video-btn:hover {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.quick-media-preview {
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    padding: 0.75rem;
+}
+
+.quick-media-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.quick-media-items {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+}
+
+.quick-media-item {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.quick-media-item img,
+.quick-media-item video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.quick-media-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 24px;
+    height: 24px;
+    background: #ef4444;
+    border-radius: 50%;
+    border: 2px solid var(--bg-secondary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 10;
+    transition: var(--transition);
+}
+
+.quick-media-remove:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+}
+
+.quick-video-item {
+    background: #000;
+}
+
+.quick-video-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.quick-video-play:hover {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+/* ===== VIDEO PLAYER OVERLAY ===== */
+.video-player-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 200000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+
+.video-player-container {
+    position: relative;
+    max-width: 95vw;
+    max-height: 95vh;
+}
+
+.video-player-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-player-close:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
