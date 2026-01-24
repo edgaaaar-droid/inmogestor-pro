@@ -37,7 +37,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 66;
+const APP_VERSION = 67;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
@@ -327,21 +327,8 @@ const App = {
                     <p class="section-subtitle">Resumen de tu actividad inmobiliaria</p>
                 </div>
             </div>
-            <!-- Lifetime Earnings Widget -->
-            <div class="card earnings-card" style="margin-bottom:1.5rem; background:linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border:1px solid var(--primary); color:white;">
-                <div class="card-body" style="display:flex; justify-content:space-between; align-items:center; padding:1.5rem;">
-                    <div>
-                        <h3 style="margin:0; font-size:1rem; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:1px;">Ganancia Total Acumulada</h3>
-                        <div style="display:flex; align-items:baseline; margin-top:0.5rem;">
-                            <span id="earningsAmount" style="font-size:2.5rem; font-weight:700; color:var(--primary); margin-right:1rem;">$ ••••••</span>
-                            <span id="earningsCurrency" style="font-size:1rem; color:rgba(255,255,255,0.5);">USD</span>
-                        </div>
-                    </div>
-                    <button class="btn-icon" id="toggleEarningsBtn" title="Mostrar/Ocultar" style="font-size:1.5rem; background:none; border:none; cursor:pointer; color:white; opacity:0.7;">
-                        👁️
-                    </button>
-                </div>
-            </div>
+            <!-- Lifetime Earnings Widget REMOVED per user request v67 -->
+
 
             <div class="stats-grid">
                 <div class="stat-card stat-primary">
