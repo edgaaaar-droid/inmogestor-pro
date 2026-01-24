@@ -1628,8 +1628,12 @@ const Signs = {
         const phone = document.getElementById('quickPhone').value.trim();
         const address = document.getElementById('quickAddress').value.trim();
 
-        if (!phone) {
-            App.showToast('❌ El teléfono es obligatorio', 'error');
+        const lat = parseFloat(document.getElementById('quickLat').value);
+        const lng = parseFloat(document.getElementById('quickLng').value);
+
+        // Relaxed validation: Require Phone OR Location
+        if (!phone && (!lat || !lng)) {
+            App.showToast('❌ Ingrese un teléfono o espere al GPS', 'error');
             document.getElementById('quickPhone').focus();
             return;
         }
@@ -1638,8 +1642,8 @@ const Signs = {
             type: this.quickModeData.type,
             phone: phone,
             address: address,
-            lat: parseFloat(document.getElementById('quickLat').value) || null,
-            lng: parseFloat(document.getElementById('quickLng').value) || null,
+            lat: lat || null,
+            lng: lng || null,
             photos: this.quickModeData.photos,
             videos: this.quickModeData.videos,
             contacted: false,
