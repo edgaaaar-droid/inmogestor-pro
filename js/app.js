@@ -27,18 +27,20 @@ async function forceAppUpdate() {
             }
         }
 
-        // 3. Reload with cache busting
+        // 3. Force Reload with heavy cache busting
         console.log('Reloading...');
-        window.location.href = window.location.pathname + '?v=' + Date.now();
+        // Use replace to avoid history stack issues and append timestamp
+        window.location.replace(window.location.pathname + '?v=' + Date.now());
 
     } catch (error) {
         console.error('Update error:', error);
+        // Fallback
         window.location.reload(true);
     }
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 60;
+const APP_VERSION = 61;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
