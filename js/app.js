@@ -38,7 +38,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 55;
+const APP_VERSION = 56;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
@@ -61,60 +61,31 @@ async function checkForUpdates() {
         console.log(`📱 Version Check: Local=v${APP_VERSION} vs Server=v${serverVersion}`);
 
         if (serverVersion > APP_VERSION) {
-            console.warn('⚠️ OLD VERSION DETECTED. BLOCKING ACCESS.');
+            console.warn('⚠️ OLD VERSION DETECTED.');
 
-            if (document.getElementById('updateRequiredOverlay')) return;
-
-            // 2. Create Blocking Overlay
-            const overlay = document.createElement('div');
-            overlay.id = 'updateRequiredOverlay';
-            overlay.style.cssText = `
-                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: rgba(0,0,0,0.95); z-index: 100000;
-                display: flex; flex-direction: column; align-items: center; justify-content: center;
-                color: white; font-family: 'Inter', sans-serif; text-align: center;
-                padding: 2rem;
-            `;
-
-            overlay.innerHTML = `
-                <div style="font-size: 4rem; margin-bottom: 1rem;">🚀</div>
-                <h1 style="color: #f59e0b; margin-bottom: 0.5rem;">Actualización Requerida</h1>
-                <p style="color: #9ca3af; margin-bottom: 2rem; max-width: 300px;">
-                    Hay una nueva versión disponible (v${serverVersion}).<br>
-                    Debes actualizar para continuar.
-                </p>
-                <div style="background: #1f2937; padding: 1rem; border-radius: 12px; border: 1px solid #374151; margin-bottom: 2rem; width: 100%; max-width: 300px;">
-                   <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.8rem; color:#6b7280;">
-                      <span>Tu versión</span>
-                      <span style="color:#ef4444">v${APP_VERSION}</span>
-                   </div>
-                   <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#6b7280;">
-                      <span>Nueva versión</span>
-                      <span style="color:#10b981; font-weight:bold;">v${serverVersion}</span>
-                   </div>
-                </div>
-                <button onclick="forceAppUpdate()" style="
-                    background: #f59e0b; color: black; border: none;
-                    padding: 1rem 2rem; border-radius: 50px;
-                    font-size: 1.1rem; font-weight: 700;
-                    cursor: pointer; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
-                    transition: transform 0.2s;
-                ">
-                    🔄 ACTUALIZAR AHORA
-                </button>
-                <p style="margin-top: 1.5rem; font-size: 0.8rem; color: #4b5563;">
-                    Si no funciona, cierra y abre la app.
-                </p>
-            `;
-
-            // 3. Inject and Block
-            document.body.appendChild(overlay);
-
-            // Stop execution of other scripts if possible? 
-            // We can't easily stop them, but the overlay blocks interaction.
-            // Also hide the app container to be sure
-            const app = document.querySelector('.app-container');
-            if (app) app.style.display = 'none';
+            // Show non-blocking toast/banner
+            if (typeof App !== 'undefined' && App.showToast) {
+                const toast = document.createElement('div');
+                toast.className = 'update-toast';
+                toast.style.cssText = `
+                    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+                    background: #f59e0b; color: black; padding: 1rem 1.5rem;
+                    border-radius: 50px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                    z-index: 100000; font-weight: bold; display: flex; align-items: center; gap: 1rem;
+                    animation: slideUp 0.3s ease-out;
+                `;
+                toast.innerHTML = `
+                    <span>🚀 Nueva versión disponible (v${serverVersion})</span>
+                    <button onclick="forceAppUpdate()" style="
+                        background: black; color: white; border: none; padding: 5px 15px;
+                        border-radius: 20px; font-weight: bold; cursor: pointer;
+                    ">Actualizar</button>
+                    <button onclick="this.parentElement.remove()" style="
+                        background: none; border: none; color: black; font-size: 1.2rem; cursor: pointer;
+                    ">×</button>
+                `;
+                document.body.appendChild(toast);
+            }
         }
     } catch (e) {
         console.error('Update check failed:', e);
