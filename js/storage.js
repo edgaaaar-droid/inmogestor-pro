@@ -555,22 +555,24 @@ const Storage = {
 
             if (doc.exists) {
                 const data = doc.data();
-                // Only sync if cloud data is newer or local is empty
+                const localLastSync = localStorage.getItem('inmogestor_lastSync');
+
+                // Sync if:
+                // 1. Local is empty (New install / Clear data)
+                // 2. Cloud has newer data (Timestamp mismatch) -> This fixes the "missing data" on startup
+                // 3. User requested aggressive sync (Implicitly covered by timestamp check usually, but we make it robust)
+
                 const localProps = this.getProperties();
-                if (localProps.length === 0 && data.properties?.length > 0) {
-                    this.set(this.KEYS.PROPERTIES, data.properties);
-                    this.set(this.KEYS.CLIENTS, data.clients || []);
-                    this.set(this.KEYS.FOLLOWUPS, data.followups || []);
-                    this.set(this.KEYS.COLLEAGUES, data.colleagues || []);
-                    this.set(this.KEYS.SALES, data.sales || []);
-                    this.set(this.KEYS.SIGNS, data.signs || []);
-                    if (data.settings) this.set(this.KEYS.SETTINGS, data.settings);
-                    if (data.lastSync) localStorage.setItem('inmogestor_lastSync', data.lastSync);
-                    console.log('☁️ Datos restaurados desde la nube');
-                    location.reload(); // Refresh to show synced data
+                const shouldSync = (localProps.length === 0 && data.properties?.length > 0) ||
+                    (data.lastSync && data.lastSync !== localLastSync);
+
+                if (shouldSync) {
+                    this.applyRemoteChanges(data);
+                    console.log('☁️ Sincronización automática al iniciar: Datos actualizados');
+                } else {
+                    console.log('☁️ Sincronización al iniciar: Datos ya estaban actualizados');
                 }
             }
-            this.updateSyncStatus('synced');
         } catch (e) {
             console.error('Error obteniendo datos de la nube:', e);
             this.updateSyncStatus('error');
