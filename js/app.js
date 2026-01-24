@@ -38,7 +38,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 51;
+const APP_VERSION = 52;
 
 // Strict Update Check and Enforcement
 (async function enforceUpdate() {
