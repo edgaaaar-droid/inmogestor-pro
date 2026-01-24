@@ -154,6 +154,10 @@ const App = {
         // Set current user in storage
         Storage.setCurrentUser(user.uid);
 
+        // Update stored version and visual indicator
+        const versionEl = document.getElementById('appVersion');
+        if (versionEl) versionEl.textContent = 'v' + APP_VERSION;
+
         // Continue normal initialization
         this.bindEvents();
         this.loadTheme();
