@@ -38,7 +38,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 53;
+const APP_VERSION = 54;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
@@ -352,7 +352,7 @@ const App = {
         document.getElementById('section-dashboard').innerHTML = `
             <div class="section-header">
                 <div>
-                    <h1>Dashboard</h1>
+                    <h1>Inicio</h1>
                     <p class="section-subtitle">Resumen de tu actividad inmobiliaria</p>
                 </div>
             </div>
