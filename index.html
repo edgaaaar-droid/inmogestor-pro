@@ -137,11 +137,17 @@
                 </a>
             </nav>
             <div class="sidebar-footer">
-                <div style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
-                    <span id="appVersion">v52</span>
-                    <button onclick="forceAppUpdate()"
-                        style="background:none; border:1px solid var(--text-muted); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:5px; cursor:pointer;">🔄
-                        Actualizar</button>
+                <div
+                    style="font-size:0.7rem; color:var(--text-muted); text-align:center; display:flex; gap:5px; justify-content:center; align-items:center;">
+                    <span id="appVersion">v54</span>
+                    <button onclick="Storage.manualSync()" title="Forzar Sincronización"
+                        style="background:none; border:1px solid var(--primary); color:var(--primary); padding:2px 6px; border-radius:4px; font-size:0.65rem; cursor:pointer;">
+                        ☁️ Sync
+                    </button>
+                    <button onclick="forceAppUpdate()" title="Buscar Actualización App"
+                        style="background:none; border:1px solid var(--text-muted); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.65rem; cursor:pointer;">
+                        🔄 Update
+                    </button>
                 </div>
             </div>
         </aside>

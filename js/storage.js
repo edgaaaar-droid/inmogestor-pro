@@ -577,6 +577,33 @@ const Storage = {
         }
     },
 
+    async manualSync() {
+        if (!this.firebaseEnabled || !this.currentUserId) {
+            App.showToast('Error: No hay conexión o usuario', 'error');
+            return;
+        }
+
+        try {
+            App.showToast('🔄 Buscando datos en la nube...', 'info');
+            const docPath = this.getUserDocPath();
+            const pathParts = docPath.split('/');
+            const doc = await db.collection(pathParts[0]).doc(pathParts[1])
+                .collection(pathParts[2]).doc(pathParts[3]).get();
+
+            if (doc.exists) {
+                const data = doc.data();
+                // Force apply changes regardless of timestamps
+                this.applyRemoteChanges(data);
+                App.showToast('✅ Datos sincronizados correctamente', 'success');
+            } else {
+                App.showToast('No se encontraron datos en la nube', 'warning');
+            }
+        } catch (e) {
+            console.error('Manual sync error:', e);
+            App.showToast('Error al sincronizar: ' + e.message, 'error');
+        }
+    },
+
     updateSyncStatus(status) {
         const statusEl = document.getElementById('syncStatus');
         if (statusEl) {
