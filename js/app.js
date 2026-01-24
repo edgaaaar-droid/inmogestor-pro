@@ -9,38 +9,35 @@ async function forceAppUpdate() {
         const btn = document.querySelector('button[onclick="forceAppUpdate()"]');
         if (btn) btn.textContent = '⏳ Descargando...';
 
-        // 1. Unregister Service Workers
+        // 1. Unregister ALL Service Workers
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (const registration of registrations) {
                 await registration.unregister();
-                console.log('SW Unregistered');
             }
         }
 
-        // 2. Clear Cache Storage
+        // 2. Clear ALL Caches
         if ('caches' in window) {
-            const cacheNames = await caches.keys();
-            for (const cacheName of cacheNames) {
-                await caches.delete(cacheName);
-                console.log('Cache Deleted:', cacheName);
-            }
+            const keys = await caches.keys();
+            await Promise.all(keys.map(key => caches.delete(key)));
         }
 
-        // 3. Force Reload with heavy cache busting
-        console.log('Reloading...');
-        // Use replace to avoid history stack issues and append timestamp
-        window.location.replace(window.location.pathname + '?v=' + Date.now());
+        // 3. NUCLEAR OPTION: Change the URL itself
+        // By adding a unique query param, we force the browser and SW to treat this as a new request
+        // We also use 'replace' to prevent back-button loops
+        const newUrl = window.location.pathname + '?v=' + Date.now();
+        console.log('Force navigating to:', newUrl);
+        window.location.replace(newUrl);
 
     } catch (error) {
         console.error('Update error:', error);
-        // Fallback
         window.location.reload(true);
     }
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 65;
+const APP_VERSION = 66;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
