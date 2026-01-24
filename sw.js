@@ -1,5 +1,5 @@
 // Service Worker for InmoGestor Pro
-const CACHE_NAME = 'inmogestor-pro-v64';
+const CACHE_NAME = 'inmogestor-pro-v65';
 const urlsToCache = [
     './',
     './index.html?v=60',
@@ -52,16 +52,18 @@ self.addEventListener('activate', event => {
 // Fetch event - network first, fallback to cache
 // Fetch event - FORCE NETWORK for HTML
 self.addEventListener('fetch', (event) => {
-    // If it's the main HTML file, always go to network first, no cache fallback for now
+    // Exclude version.json from cache - ALWAYS Network First
+    if (event.request.url.includes('version.json')) {
+        event.respondWith(
+            fetch(event.request).then(response => response).catch(() => new Response('{"version": 0}'))
+        );
+        return;
+    }
+
+    // Force Network for HTML (Navigation)
     if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
         event.respondWith(
-            fetch(event.request)
-                .then(response => {
-                    return response;
-                })
-                .catch(() => {
-                    return caches.match(event.request);
-                })
+            fetch(event.request).catch(() => caches.match(event.request))
         );
         return;
     }
