@@ -30,6 +30,19 @@ const Properties = {
                     fixed++;
                 }
             }
+
+            // Fix Legacy Status Language (Spanish -> English) to ensure filters work
+            const statusMap = {
+                'vendida': 'sold', 'vendido': 'sold',
+                'alquilada': 'rented', 'alquilado': 'rented',
+                'reservada': 'reserved', 'reservado': 'reserved',
+                'disponible': 'available'
+            };
+            const normalizeStatus = (p.status || '').toLowerCase();
+            if (statusMap[normalizeStatus]) {
+                p.status = statusMap[normalizeStatus];
+                fixed++;
+            }
         });
         if (fixed > 0) {
             Storage.saveProperties(props);

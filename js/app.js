@@ -37,7 +37,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 67;
+const APP_VERSION = 68;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
@@ -1398,6 +1398,13 @@ const App = {
             console.error('Error loading captador signs:', error);
             container.innerHTML = '<p style="color: var(--danger);">Error cargando carteles</p>';
         }
+    },
+
+    closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) modal.classList.remove('active');
+        // Clear hash if it was a route-based modal (optional but good practice)
+        if (window.location.hash === '#detail') window.history.back();
     },
 
     // ===== CAPTADORES MANAGEMENT PANEL =====
