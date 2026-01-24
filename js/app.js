@@ -38,7 +38,7 @@ async function forceAppUpdate() {
 }
 
 // Current app version - increment this with each deploy
-const APP_VERSION = 58;
+const APP_VERSION = 59;
 
 // Strict Update Check and Enforcement
 async function checkForUpdates() {
@@ -138,6 +138,7 @@ const App = {
         Clients.init();
         Followups.init();
         Signs.init();
+        Financials.init();
         this.updateDashboard();
         this.handleHash();
 
@@ -728,11 +729,14 @@ const App = {
 
     handleHash() {
         const hash = window.location.hash.substring(1) || 'dashboard';
-        if (['dashboard', 'properties', 'clients', 'followups', 'signs', 'map'].includes(hash)) {
+        if (['dashboard', 'properties', 'clients', 'followups', 'signs', 'map', 'financials'].includes(hash)) {
             this.navigateTo(hash);
             // Initialize general map when navigating to map section
             if (hash === 'map') {
                 setTimeout(() => Properties.initGeneralMap(), 100);
+            }
+            if (hash === 'financials') {
+                Financials.render();
             }
         }
     },

@@ -9,7 +9,8 @@ const Storage = {
         COLLEAGUES: 'inmogestor_colleagues',
         SALES: 'inmogestor_sales',
         SETTINGS: 'inmogestor_settings',
-        SIGNS: 'inmogestor_signs'
+        SIGNS: 'inmogestor_signs',
+        EXPENSES: 'inmogestor_expenses'
     },
 
     // Current user ID for multi-user support
@@ -367,6 +368,35 @@ const Storage = {
         const signs = this.getSigns().filter(s => s.id !== id);
         this.set(this.KEYS.SIGNS, signs);
         this.addActivity('sign', 'deleted', 'Cartel eliminado');
+        this.triggerCloudSync();
+    },
+
+    // Financials (Gastos y Costos)
+    getExpenses() {
+        return this.get('inmogestor_expenses') || [];
+    },
+
+    saveExpense(expense) {
+        const expenses = this.getExpenses();
+        if (expense.id) {
+            const index = expenses.findIndex(e => e.id === expense.id);
+            if (index !== -1) {
+                expenses[index] = { ...expenses[index], ...expense, updatedAt: new Date().toISOString() };
+            }
+        } else {
+            expense.id = this.generateId();
+            expense.createdAt = new Date().toISOString();
+            expenses.push(expense);
+        }
+        this.set('inmogestor_expenses', expenses);
+        this.addActivity('expense', expense.id ? 'updated' : 'created', `Gasto: ${expense.category} - $${expense.amount}`);
+        this.triggerCloudSync();
+        return expense;
+    },
+
+    deleteExpense(id) {
+        const expenses = this.getExpenses().filter(e => e.id !== id);
+        this.set('inmogestor_expenses', expenses);
         this.triggerCloudSync();
     },
 
